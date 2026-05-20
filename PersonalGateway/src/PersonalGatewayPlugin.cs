@@ -59,6 +59,8 @@ namespace PersonalGateway
         private void Update()
         {
             MapRangeOverlay.Tick();
+            MapToggleButton.Tick();
+            TeleportCursor.Tick();
             Teleport.TeleportController.Tick();
         }
 

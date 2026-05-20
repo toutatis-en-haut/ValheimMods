@@ -3,6 +3,7 @@ using PersonalGateway.Config;
 using PersonalGateway.Items;
 using PersonalGateway.Skills;
 using PersonalGateway.State;
+using PersonalGateway.UI;
 using UnityEngine;
 
 namespace PersonalGateway.Teleport
@@ -23,7 +24,7 @@ namespace PersonalGateway.Teleport
 
             if (!BifrostTotem.PlayerHasTotem(player))
             {
-                GatewayState.Reset();
+                Cancel(player, showMessage: false);
                 return;
             }
 
@@ -32,11 +33,19 @@ namespace PersonalGateway.Teleport
                 || !player.GetInventory().ContainsItem(GatewayState.SelectedTrophy))
             {
                 player.Message(MessageHud.MessageType.Center, "$bifrost_msg_trophy_lost");
-                GatewayState.Reset();
+                Cancel(player, showMessage: false);
                 return;
             }
 
             if (minimap.m_largeRoot == null || !minimap.m_largeRoot.activeSelf) return;
+
+            if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+            {
+                player.Message(MessageHud.MessageType.Center, "$bifrost_msg_cancelled");
+                Cancel(player, showMessage: false);
+                return;
+            }
+
             if (!ModifierHeld()) return;
 
             int btn = GatewayConfig.TeleportMouseButton.Value;
@@ -44,27 +53,41 @@ namespace PersonalGateway.Teleport
 
             if (!TryMouseToWorld(minimap, out Vector3 worldPos)) return;
 
-            float now = Time.unscaledTime;
-            float window = Mathf.Max(0.05f, GatewayConfig.DoubleClickWindowSeconds.Value);
-
-            if (_firstClickArmed
-                && (now - _lastClickTime) <= window
-                && Vector3.Distance(worldPos, _lastClickWorld) < 50f)
+            if (GatewayConfig.RequireDoubleClick.Value)
             {
-                _firstClickArmed = false;
-                TryTeleport(player, worldPos);
+                float now = Time.unscaledTime;
+                float window = Mathf.Max(0.05f, GatewayConfig.DoubleClickWindowSeconds.Value);
+                if (_firstClickArmed
+                    && (now - _lastClickTime) <= window
+                    && Vector3.Distance(worldPos, _lastClickWorld) < 50f)
+                {
+                    _firstClickArmed = false;
+                    TryTeleport(player, worldPos);
+                }
+                else
+                {
+                    _firstClickArmed = true;
+                    _lastClickTime = now;
+                    _lastClickWorld = worldPos;
+                }
             }
             else
             {
-                _firstClickArmed = true;
-                _lastClickTime = now;
-                _lastClickWorld = worldPos;
+                TryTeleport(player, worldPos);
             }
+        }
+
+        private static void Cancel(Player player, bool showMessage)
+        {
+            GatewayState.Reset();
+            TeleportCursor.ForceReset();
+            _firstClickArmed = false;
         }
 
         private static bool ModifierHeld()
         {
-            return Input.GetKey(GatewayConfig.TeleportModifierKey.Value);
+            var key = GatewayConfig.TeleportModifierKey.Value;
+            return key == KeyCode.None || Input.GetKey(key);
         }
 
         private static bool TryMouseToWorld(Minimap minimap, out Vector3 world)
@@ -138,6 +161,8 @@ namespace PersonalGateway.Teleport
             player.TeleportTo(dest, player.transform.rotation, distantTeleport: true);
             BifrostSkill.AwardXp(player, xp);
             GatewayState.Reset();
+            TeleportCursor.ForceReset();
+            _firstClickArmed = false;
 
             if (Minimap.instance != null) Minimap.instance.SetMapMode(Minimap.MapMode.Small);
 

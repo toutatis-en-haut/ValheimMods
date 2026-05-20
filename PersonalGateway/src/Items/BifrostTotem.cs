@@ -9,7 +9,8 @@ namespace PersonalGateway.Items
     internal static class BifrostTotem
     {
         public const string PrefabName = "BifrostTotem";
-        public const string ClonedFrom = "BoneFragments";
+        public const string PreferredClone = "YagluthDrop";
+        public const string FallbackClone = "BoneFragments";
         public const string LocalizedNameToken = "$bifrost_totem_name";
         public const string LocalizedDescToken = "$bifrost_totem_desc";
 
@@ -17,19 +18,29 @@ namespace PersonalGateway.Items
 
         public static void Register()
         {
-            var prefab = PrefabManager.Instance.CreateClonedPrefab(PrefabName, ClonedFrom);
+            var prefab = PrefabManager.Instance.CreateClonedPrefab(PrefabName, PreferredClone);
+            string usedSource = PreferredClone;
+            if (prefab == null || prefab.GetComponent<ItemDrop>() == null)
+            {
+                if (prefab != null) UnityEngine.Object.Destroy(prefab);
+                PersonalGatewayPlugin.Log.LogInfo($"Could not clone '{PreferredClone}'; falling back to '{FallbackClone}'.");
+                prefab = PrefabManager.Instance.CreateClonedPrefab(PrefabName, FallbackClone);
+                usedSource = FallbackClone;
+            }
+
             if (prefab == null)
             {
-                PersonalGatewayPlugin.Log.LogError($"Could not clone base prefab '{ClonedFrom}'.");
+                PersonalGatewayPlugin.Log.LogError($"Could not clone any base prefab for the Bifröst Totem.");
                 return;
             }
 
             var itemDrop = prefab.GetComponent<ItemDrop>();
             if (itemDrop == null || itemDrop.m_itemData == null || itemDrop.m_itemData.m_shared == null)
             {
-                PersonalGatewayPlugin.Log.LogError($"Cloned prefab '{ClonedFrom}' missing ItemDrop/SharedData.");
+                PersonalGatewayPlugin.Log.LogError($"Cloned prefab '{usedSource}' missing ItemDrop/SharedData.");
                 return;
             }
+            PersonalGatewayPlugin.Log.LogInfo($"Cloned Bifröst Totem from '{usedSource}'.");
 
             var shared = itemDrop.m_itemData.m_shared;
             var sprite = AssetLoader.TryLoadSprite("assets/icons/bifrost_totem.png", keyWhiteToAlpha: true)

@@ -127,15 +127,18 @@ jobs:
             -p:ValheimManaged="$HOME/valheim-server/valheim_server_Data/Managed" \
             -p:JotunnPath="$JotunnPath"
 
-      - name: Stage release contents
+      - name: Stage release contents (Thunderstore layout)
         working-directory: PersonalGateway
         run: |
           set -e
           rm -rf release
-          mkdir -p release/PersonalGateway
-          cp bin/Release/PersonalGateway.dll release/PersonalGateway/
-          if [ -d assets ]; then cp -r assets release/PersonalGateway/; fi
-          cd release && zip -r ../PersonalGateway.zip PersonalGateway
+          mkdir -p release/plugins
+          cp bin/Release/PersonalGateway.dll release/plugins/
+          if [ -d assets ]; then cp -r assets release/plugins/; fi
+          cp thunderstore/manifest.json release/
+          cp thunderstore/icon.png release/
+          cp thunderstore/README.md release/
+          cd release && zip -r ../PersonalGateway.zip .
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
