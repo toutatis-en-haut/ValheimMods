@@ -15,9 +15,19 @@ namespace PersonalGateway.Teleport
         private static float _lastClickTime = -10f;
         private static Vector3 _lastClickWorld;
         private static bool _firstClickArmed;
+        private static bool _pendingMapClose;
 
         public static void Tick()
         {
+            // Close the large map after teleport, but only once the mouse button is released —
+            // closing while LMB is still held strands Valheim's drag state and the next time
+            // the player opens the map, the view follows the cursor until they click again.
+            if (_pendingMapClose && !Input.GetMouseButton(0))
+            {
+                _pendingMapClose = false;
+                if (Minimap.instance != null) Minimap.instance.SetMapMode(Minimap.MapMode.Small);
+            }
+
             if (GatewayState.Phase != ArmingPhase.AwaitingDestination) return;
 
             var player = Player.m_localPlayer;
@@ -185,12 +195,7 @@ namespace PersonalGateway.Teleport
                 return;
             }
 
-            float groundY = 50f;
-            if (ZoneSystem.instance != null && ZoneSystem.instance.GetGroundHeight(dest, out float gh))
-            {
-                groundY = gh + 0.5f;
-            }
-            dest.y = groundY;
+            dest.y = ResolveSafeY(dest);
 
             var trophy = GatewayState.SelectedTrophy;
             string trophyName = trophy != null && trophy.m_shared != null
@@ -210,11 +215,57 @@ namespace PersonalGateway.Teleport
             GatewayState.Reset();
             TeleportCursor.ForceReset();
             _firstClickArmed = false;
-
-            if (Minimap.instance != null) Minimap.instance.SetMapMode(Minimap.MapMode.Small);
+            _pendingMapClose = true;
 
             var msg = Localization.instance.Localize("$bifrost_msg_teleported", trophyName);
             player.Message(MessageHud.MessageType.Center, msg);
+        }
+
+        private static float ResolveSafeY(Vector3 dest)
+        {
+            const float clearance = 1.0f;
+            float terrainY = float.MinValue;
+            float waterY = 30f;
+
+            try
+            {
+                var gen = WorldGenerator.instance;
+                if (gen != null)
+                {
+                    var getHeight = AccessTools.Method(typeof(WorldGenerator), "GetHeight", new[] { typeof(float), typeof(float) });
+                    if (getHeight != null)
+                    {
+                        var result = getHeight.Invoke(gen, new object[] { dest.x, dest.z });
+                        if (result is float h) terrainY = h;
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                PersonalGatewayPlugin.Log?.LogWarning($"[Bifrost] WorldGenerator.GetHeight failed: {ex.Message}");
+            }
+
+            try
+            {
+                var zs = ZoneSystem.instance;
+                if (zs != null)
+                {
+                    var field = AccessTools.Field(typeof(ZoneSystem), "m_waterLevel");
+                    if (field != null && field.GetValue(zs) is float w) waterY = w;
+
+                    if (zs.GetGroundHeight(dest, out float zoneH) && zoneH > terrainY)
+                    {
+                        terrainY = zoneH;
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                PersonalGatewayPlugin.Log?.LogWarning($"[Bifrost] ZoneSystem ground check failed: {ex.Message}");
+            }
+
+            if (terrainY == float.MinValue) terrainY = waterY;
+            return Mathf.Max(terrainY, waterY) + clearance;
         }
 
         private static bool IsExplored(Vector3 worldPos)

@@ -12,6 +12,7 @@ namespace PersonalGateway.Config
 
         public static ConfigEntry<int> MaxSkillLevel;
         public static ConfigEntry<float> MaxTeleportRangeMeters;
+        public static ConfigEntry<bool> AutoDetectWorldSize;
 
         public static ConfigEntry<int> IngredientGreydwarfEye;
         public static ConfigEntry<int> IngredientThistle;
@@ -51,8 +52,14 @@ namespace PersonalGateway.Config
                 "Skill", "MaxSkillLevel", 100,
                 "Maximum Bifröst skill level. Range circle disappears at this level.");
             MaxTeleportRangeMeters = cfg.Bind(
-                "Skill", "MaxTeleportRangeMeters", 35000f,
-                "Range in meters available at max skill. Range at level L = MaxTeleportRangeMeters * (L / MaxSkillLevel).");
+                "Skill", "MaxTeleportRangeMeters", 20000f,
+                "Range in meters available at max skill (used as a fallback when AutoDetectWorldSize is false or detection fails). " +
+                "A normal Valheim world is ~20000m across (10000m radius). " +
+                "Range at level L = MaxTeleportRangeMeters * (L / MaxSkillLevel).");
+            AutoDetectWorldSize = cfg.Bind(
+                "Skill", "AutoDetectWorldSize", true,
+                "If true, read the world diameter from Valheim's WorldGenerator at runtime and use that as the max range. " +
+                "Falls back to MaxTeleportRangeMeters if detection fails.");
 
             IngredientGreydwarfEye = cfg.Bind("Recipe", "GreydwarfEye", 10, "Greydwarf Eyes required to craft the Bifröst Totem.");
             IngredientThistle = cfg.Bind("Recipe", "Thistle", 10, "Thistles required to craft the Bifröst Totem.");
