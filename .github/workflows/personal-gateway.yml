@@ -47,9 +47,12 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             ca-certificates curl tar \
             lib32gcc-s1 lib32stdc++6
-          sudo mkdir -p /opt/steamcmd
+          mkdir -p "$HOME/steamcmd"
           curl -fsSL https://media.steampowered.com/installer/steamcmd_linux.tar.gz \
-            | sudo tar -xz -C /opt/steamcmd
+            | tar -xz -C "$HOME/steamcmd"
+          chmod +x "$HOME/steamcmd/steamcmd.sh"
+          [ -f "$HOME/steamcmd/linux32/steamcmd" ] && chmod +x "$HOME/steamcmd/linux32/steamcmd" || true
+          ls -la "$HOME/steamcmd"
 
       - name: Cache Valheim dedicated server
         id: cache-valheim
@@ -62,7 +65,7 @@ jobs:
         if: steps.cache-valheim.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$HOME/valheim-server"
-          /opt/steamcmd/steamcmd.sh \
+          "$HOME/steamcmd/steamcmd.sh" \
             +@sSteamCmdForcePlatformType linux \
             +force_install_dir "$HOME/valheim-server" \
             +login anonymous \
