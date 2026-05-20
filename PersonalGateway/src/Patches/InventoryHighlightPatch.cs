@@ -1,7 +1,9 @@
+using System.Collections;
 using HarmonyLib;
 using PersonalGateway.Items;
 using PersonalGateway.State;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace PersonalGateway.Patches
 {
@@ -14,24 +16,25 @@ namespace PersonalGateway.Patches
         [HarmonyPatch(nameof(InventoryGrid.UpdateInventory))]
         private static void UpdateInventory_Postfix(InventoryGrid __instance)
         {
-            if (__instance == null || __instance.m_elements == null) return;
+            if (__instance == null) return;
 
-            var inventoryField = Traverse.Create(__instance).Field("m_inventory");
-            var inventory = inventoryField.GetValue<Inventory>();
-            if (inventory == null) return;
+            var elements = Traverse.Create(__instance).Field("m_elements").GetValue() as IList;
+            var inventory = Traverse.Create(__instance).Field("m_inventory").GetValue<Inventory>();
+            if (elements == null || inventory == null) return;
 
             bool highlight = GatewayState.Phase == ArmingPhase.AwaitingTrophy;
             int width = inventory.GetWidth();
             if (width <= 0) return;
 
-            var elements = __instance.m_elements;
             float pulse = highlight ? (0.75f + 0.25f * Mathf.Sin(Time.unscaledTime * 5f)) : 1f;
             var pulseColor = new Color(HighlightColor.r, HighlightColor.g * pulse, HighlightColor.b * pulse, 1f);
 
             for (int i = 0; i < elements.Count; i++)
             {
                 var element = elements[i];
-                if (element == null || element.m_icon == null) continue;
+                if (element == null) continue;
+                var icon = Traverse.Create(element).Field("m_icon").GetValue<Image>();
+                if (icon == null) continue;
 
                 int x = i % width;
                 int y = i / width;
@@ -39,11 +42,11 @@ namespace PersonalGateway.Patches
 
                 if (highlight && item != null && TrophyRegistry.IsTrophy(item))
                 {
-                    element.m_icon.color = pulseColor;
+                    icon.color = pulseColor;
                 }
-                else if (element.m_icon.color != Color.white && (item == null || !IsLowDurability(item)))
+                else if (icon.color != Color.white && (item == null || !IsLowDurability(item)))
                 {
-                    element.m_icon.color = Color.white;
+                    icon.color = Color.white;
                 }
             }
         }

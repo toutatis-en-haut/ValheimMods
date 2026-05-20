@@ -25,6 +25,8 @@
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <Deterministic>true</Deterministic>
+    <!-- Silence netstandard 2.0/2.1 unification noise; we override netstandard explicitly below. -->
+    <MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -63,12 +65,22 @@
         Local (macOS):      Valheim/valheim.app/Contents/Resources/Data/Managed
         CI (Linux dedi):    valheim_server_Data/Managed   (override via -p:ValheimManaged=...)
     -->
+    <!-- Override the netstandard 2.0 reference assembly with Unity's 2.1 to clear CS1705. -->
+    <Reference Include="netstandard">
+      <HintPath>$(ValheimManaged)/netstandard.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
     <Reference Include="assembly_valheim">
       <HintPath>$(ValheimManaged)/assembly_valheim.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="assembly_utils">
       <HintPath>$(ValheimManaged)/assembly_utils.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="assembly_guiutils">
+      <HintPath>$(ValheimManaged)/assembly_guiutils.dll</HintPath>
       <Private>false</Private>
     </Reference>
 
@@ -104,12 +116,12 @@
       <HintPath>$(ValheimManaged)/UnityEngine.AnimationModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="UnityEngine.ImageConversionModule">
-      <HintPath>$(ValheimManaged)/UnityEngine.ImageConversionModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
     <Reference Include="UnityEngine.Physics2DModule">
       <HintPath>$(ValheimManaged)/UnityEngine.Physics2DModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>$(ValheimManaged)/UnityEngine.AssetBundleModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

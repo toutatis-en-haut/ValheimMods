@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/wilco/.claude/image-cache/ee02cae4-d1ee-4f69-a68c-d7f2fdceac3c/**)",
+      "Bash(cp \"/Users/wilco/.claude/image-cache/ee02cae4-d1ee-4f69-a68c-d7f2fdceac3c/1.png\" /Users/wilco/Docker/games/valheim/Toutatis/PersonalGateway/assets/icons/bifrost_totem.png)",
+      "Bash(gh run *)",
+      "Bash(grep -E \"^Hide$|^IsVisible$|CloseInventory|SetMapMode|WorldToMapPoint|m_explored|m_largeRoot|m_mapImageLarge\")"
+    ]
+  }
+}

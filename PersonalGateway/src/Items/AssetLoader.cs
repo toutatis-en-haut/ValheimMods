@@ -19,17 +19,14 @@ namespace PersonalGateway.Items
                     return null;
                 }
 
-                byte[] bytes = File.ReadAllBytes(fullPath);
-                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false)
-                {
-                    filterMode = FilterMode.Bilinear,
-                    wrapMode = TextureWrapMode.Clamp
-                };
-                if (!tex.LoadImage(bytes))
+                var tex = Jotunn.Utils.AssetUtils.LoadTexture(fullPath, relativePath: false);
+                if (tex == null)
                 {
                     PersonalGatewayPlugin.Log?.LogWarning($"Failed to decode image: {fullPath}");
                     return null;
                 }
+                tex.filterMode = FilterMode.Bilinear;
+                tex.wrapMode = TextureWrapMode.Clamp;
 
                 if (keyWhiteToAlpha) KeyWhiteToTransparent(tex);
 

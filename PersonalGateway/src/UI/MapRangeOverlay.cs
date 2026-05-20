@@ -1,3 +1,4 @@
+using HarmonyLib;
 using PersonalGateway.Config;
 using PersonalGateway.Items;
 using PersonalGateway.Skills;
@@ -63,11 +64,28 @@ namespace PersonalGateway.UI
             return true;
         }
 
+        private static System.Reflection.MethodInfo _worldToMapPointMethod;
+
+        private static bool InvokeWorldToMapPoint(Minimap minimap, Vector3 worldPos, out float mx, out float my)
+        {
+            mx = my = 0f;
+            if (_worldToMapPointMethod == null)
+            {
+                _worldToMapPointMethod = AccessTools.Method(typeof(Minimap), "WorldToMapPoint");
+                if (_worldToMapPointMethod == null) return false;
+            }
+            var args = new object[] { worldPos, 0f, 0f };
+            bool ok = (bool)_worldToMapPointMethod.Invoke(minimap, args);
+            mx = (float)args[1];
+            my = (float)args[2];
+            return ok;
+        }
+
         private static void UpdateOverlay(Minimap minimap, Player player)
         {
             if (minimap.m_mapImageLarge == null) return;
 
-            if (!minimap.WorldToMapPoint(player.transform.position, out float mx, out float my))
+            if (!InvokeWorldToMapPoint(minimap, player.transform.position, out float mx, out float my))
             {
                 _go.SetActive(false);
                 return;

@@ -25,8 +25,10 @@ namespace PersonalGateway.Skills
 
         public static float GetSkillLevel(Player player)
         {
-            if (player == null || player.m_skills == null) return 0f;
-            return player.m_skills.GetSkillLevel(SkillType);
+            if (player == null) return 0f;
+            var skills = HarmonyLib.Traverse.Create(player).Field("m_skills").GetValue<global::Skills>();
+            if (skills == null) return 0f;
+            return skills.GetSkillLevel(SkillType);
         }
 
         public static float GetRangeMeters(Player player)
