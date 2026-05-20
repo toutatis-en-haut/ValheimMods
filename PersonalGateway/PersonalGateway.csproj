@@ -31,15 +31,30 @@
     <ValheimInstall Condition="'$(ValheimInstall)' == ''">$(HOME)/Library/Application Support/Steam/steamapps/common/Valheim</ValheimInstall>
     <ValheimManaged Condition="'$(ValheimManaged)' == ''">$(ValheimInstall)/valheim.app/Contents/Resources/Data/Managed</ValheimManaged>
     <BepInExPlugins Condition="'$(BepInExPlugins)' == ''">$(ValheimInstall)/BepInEx/plugins</BepInExPlugins>
+    <JotunnPath Condition="'$(JotunnPath)' == ''">$(BepInExPlugins)/Jotunn</JotunnPath>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- net462 reference assemblies (required for Linux/macOS builds without Mono) -->
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
 
-    <!-- BepInEx + Jötunn via NuGet so CI does not need local installs. -->
+    <!--
+      BepInEx via NuGet. Binary-compatible across 5.4.x point releases, so
+      compiling against 5.4.21 still runs on 5.4.23.3 in-game.
+    -->
     <PackageReference Include="BepInEx.Core" Version="5.4.21" PrivateAssets="all" />
-    <PackageReference Include="Jotunn" Version="2.29.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Jötunn is distributed via Thunderstore (not NuGet), so we reference its DLL directly.
+        Local: defaults to $(ValheimInstall)/BepInEx/plugins/Jotunn/Jotunn.dll
+        CI:    workflow downloads the Thunderstore zip and passes -p:JotunnPath=...
+    -->
+    <Reference Include="Jotunn">
+      <HintPath>$(JotunnPath)/Jotunn.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

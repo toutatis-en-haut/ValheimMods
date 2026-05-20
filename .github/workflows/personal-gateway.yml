@@ -96,6 +96,26 @@ jobs:
           test -f "$MANAGED/assembly_valheim.dll" || { echo "::error::assembly_valheim.dll not found at $MANAGED"; ls -la "$HOME/valheim-server" || true; exit 1; }
           echo "Managed DLLs found at $MANAGED"
 
+      - name: Download Jötunn from Thunderstore
+        env:
+          JOTUNN_VERSION: 2.29.0
+        run: |
+          set -e
+          sudo apt-get install -y --no-install-recommends unzip
+          mkdir -p "$HOME/jotunn"
+          curl -fsSL -o /tmp/jotunn.zip \
+            "https://thunderstore.io/package/download/ValheimModding/Jotunn/${JOTUNN_VERSION}/"
+          unzip -o /tmp/jotunn.zip -d "$HOME/jotunn" > /dev/null
+          DLL_PATH=$(find "$HOME/jotunn" -name 'Jotunn.dll' -print -quit)
+          if [ -z "$DLL_PATH" ]; then
+            echo "::error::Jotunn.dll not found in Thunderstore zip"
+            find "$HOME/jotunn" -type f
+            exit 1
+          fi
+          JOTUNN_DIR=$(dirname "$DLL_PATH")
+          echo "JotunnPath=$JOTUNN_DIR" >> "$GITHUB_ENV"
+          echo "Resolved JotunnPath=$JOTUNN_DIR"
+
       - name: Restore
         working-directory: PersonalGateway
         run: dotnet restore
@@ -104,7 +124,8 @@ jobs:
         working-directory: PersonalGateway
         run: |
           dotnet build -c Release --no-restore \
-            -p:ValheimManaged="$HOME/valheim-server/valheim_server_Data/Managed"
+            -p:ValheimManaged="$HOME/valheim-server/valheim_server_Data/Managed" \
+            -p:JotunnPath="$JotunnPath"
 
       - name: Stage release contents
         working-directory: PersonalGateway
