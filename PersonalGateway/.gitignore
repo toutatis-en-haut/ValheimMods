@@ -5,4 +5,5 @@ obj/
 .vs/
 .idea/
 .vscode/
+.claude/
 *.DotSettings.user
