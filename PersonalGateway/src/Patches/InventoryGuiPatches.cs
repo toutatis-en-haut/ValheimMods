@@ -50,6 +50,7 @@ namespace PersonalGateway.Patches
         {
             if (GatewayState.Phase != ArmingPhase.Idle)
             {
+                PersonalGatewayPlugin.Log?.LogInfo($"[Bifrost] Re-clicked totem while in '{GatewayState.Phase}'; cancelling.");
                 GatewayState.Reset();
                 player.Message(MessageHud.MessageType.Center, "$bifrost_msg_cancelled");
                 return;
@@ -57,17 +58,21 @@ namespace PersonalGateway.Patches
 
             if (!HasAnyTrophy(player))
             {
+                PersonalGatewayPlugin.Log?.LogInfo("[Bifrost] Totem activated but no trophy carried.");
                 player.Message(MessageHud.MessageType.Center, "$bifrost_msg_no_trophies");
                 return;
             }
 
             GatewayState.Arm();
+            PersonalGatewayPlugin.Log?.LogInfo("[Bifrost] State -> AwaitingTrophy.");
             player.Message(MessageHud.MessageType.Center, "$bifrost_msg_armed");
         }
 
         private static void HandleTrophySelection(Player player, ItemDrop.ItemData trophy)
         {
+            var trophyName = trophy?.m_dropPrefab != null ? trophy.m_dropPrefab.name : "?";
             GatewayState.SelectTrophy(trophy);
+            PersonalGatewayPlugin.Log?.LogInfo($"[Bifrost] State -> AwaitingDestination (trophy: {trophyName}).");
             player.Message(MessageHud.MessageType.Center, "$bifrost_msg_channel");
             if (InventoryGui.instance != null)
             {

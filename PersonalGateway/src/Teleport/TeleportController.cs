@@ -10,6 +10,8 @@ namespace PersonalGateway.Teleport
 {
     internal static class TeleportController
     {
+        private const float PhaseSettleSeconds = 0.25f;
+
         private static float _lastClickTime = -10f;
         private static Vector3 _lastClickWorld;
         private static bool _firstClickArmed;
@@ -24,7 +26,8 @@ namespace PersonalGateway.Teleport
 
             if (!BifrostTotem.PlayerHasTotem(player))
             {
-                Cancel(player, showMessage: false);
+                PersonalGatewayPlugin.Log?.LogInfo("[Bifrost] Totem no longer in inventory; cancelling.");
+                Cancel();
                 return;
             }
 
@@ -32,26 +35,50 @@ namespace PersonalGateway.Teleport
                 || player.GetInventory() == null
                 || !player.GetInventory().ContainsItem(GatewayState.SelectedTrophy))
             {
+                PersonalGatewayPlugin.Log?.LogInfo("[Bifrost] Selected trophy gone; cancelling.");
                 player.Message(MessageHud.MessageType.Center, "$bifrost_msg_trophy_lost");
-                Cancel(player, showMessage: false);
+                Cancel();
                 return;
             }
 
             if (minimap.m_largeRoot == null || !minimap.m_largeRoot.activeSelf) return;
 
-            if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+            // Ignore input for a short settle window after entering AwaitingDestination
+            // so the right-click that selected the trophy isn't read as a cancel here.
+            if (GatewayState.SecondsInPhase < PhaseSettleSeconds) return;
+
+            if (Input.GetKeyDown(KeyCode.Escape))
             {
+                PersonalGatewayPlugin.Log?.LogInfo("[Bifrost] Esc cancel.");
                 player.Message(MessageHud.MessageType.Center, "$bifrost_msg_cancelled");
-                Cancel(player, showMessage: false);
+                Cancel();
                 return;
             }
 
-            if (!ModifierHeld()) return;
+            if (Input.GetMouseButtonDown(1) && IsMouseOverMap(minimap))
+            {
+                PersonalGatewayPlugin.Log?.LogInfo("[Bifrost] Right-click on map: cancel.");
+                player.Message(MessageHud.MessageType.Center, "$bifrost_msg_cancelled");
+                Cancel();
+                return;
+            }
+
+            if (!ModifierHeld())
+            {
+                return;
+            }
 
             int btn = GatewayConfig.TeleportMouseButton.Value;
             if (!Input.GetMouseButtonDown(btn)) return;
+            if (!IsMouseOverMap(minimap)) return;
 
-            if (!TryMouseToWorld(minimap, out Vector3 worldPos)) return;
+            if (!TryMouseToWorld(minimap, out Vector3 worldPos))
+            {
+                PersonalGatewayPlugin.Log?.LogInfo("[Bifrost] Click could not be resolved to a world position.");
+                return;
+            }
+
+            PersonalGatewayPlugin.Log?.LogInfo($"[Bifrost] Click on map at world ({worldPos.x:F1}, {worldPos.z:F1}).");
 
             if (GatewayConfig.RequireDoubleClick.Value)
             {
@@ -77,7 +104,7 @@ namespace PersonalGateway.Teleport
             }
         }
 
-        private static void Cancel(Player player, bool showMessage)
+        private static void Cancel()
         {
             GatewayState.Reset();
             TeleportCursor.ForceReset();
@@ -87,7 +114,20 @@ namespace PersonalGateway.Teleport
         private static bool ModifierHeld()
         {
             var key = GatewayConfig.TeleportModifierKey.Value;
-            return key == KeyCode.None || Input.GetKey(key);
+            if (key == KeyCode.None) return true;
+            bool held = Input.GetKey(key);
+            if (!held && Input.GetMouseButtonDown(GatewayConfig.TeleportMouseButton.Value))
+            {
+                PersonalGatewayPlugin.Log?.LogInfo($"[Bifrost] Click ignored: modifier '{key}' not held. Set Controls.TeleportModifierKey=None to disable.");
+            }
+            return held;
+        }
+
+        private static bool IsMouseOverMap(Minimap minimap)
+        {
+            if (minimap.m_mapImageLarge == null) return false;
+            var rt = (RectTransform)minimap.m_mapImageLarge.transform;
+            return RectTransformUtility.RectangleContainsScreenPoint(rt, Input.mousePosition);
         }
 
         private static bool TryMouseToWorld(Minimap minimap, out Vector3 world)
@@ -128,14 +168,19 @@ namespace PersonalGateway.Teleport
 
             bool maxed = BifrostSkill.IsMaxed(player);
             float range = BifrostSkill.GetRangeMeters(player);
+
+            PersonalGatewayPlugin.Log?.LogInfo($"[Bifrost] Teleport attempt: dist={horizDist:F1}m, range={range:F1}m, maxed={maxed}.");
+
             if (!maxed && horizDist > range)
             {
+                PersonalGatewayPlugin.Log?.LogInfo("[Bifrost] Out of range.");
                 player.Message(MessageHud.MessageType.Center, "$bifrost_msg_too_far");
                 return;
             }
 
             if (!IsExplored(dest))
             {
+                PersonalGatewayPlugin.Log?.LogInfo("[Bifrost] Destination is unexplored.");
                 player.Message(MessageHud.MessageType.Center, "$bifrost_msg_unknown");
                 return;
             }
@@ -157,6 +202,8 @@ namespace PersonalGateway.Teleport
             {
                 player.GetInventory().RemoveItem(trophy, 1);
             }
+
+            PersonalGatewayPlugin.Log?.LogInfo($"[Bifrost] Teleporting to ({dest.x:F1}, {dest.y:F1}, {dest.z:F1}); consuming {trophyName}; +{xp} XP.");
 
             player.TeleportTo(dest, player.transform.rotation, distantTeleport: true);
             BifrostSkill.AwardXp(player, xp);

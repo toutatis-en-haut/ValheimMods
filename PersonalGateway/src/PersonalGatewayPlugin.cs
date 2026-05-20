@@ -38,6 +38,11 @@ namespace PersonalGateway
             Harmony.PatchAll();
 
             Log.LogInfo($"{ModName} v{ModVersion} loaded.");
+            Log.LogInfo(
+                $"[Bifrost] Effective controls: ModifierKey={GatewayConfig.TeleportModifierKey.Value}, " +
+                $"MouseButton={GatewayConfig.TeleportMouseButton.Value}, " +
+                $"RequireDoubleClick={GatewayConfig.RequireDoubleClick.Value}. " +
+                "If clicks aren't teleporting and ModifierKey is not None, that's why.");
         }
 
         private void OnVanillaPrefabsAvailable()
