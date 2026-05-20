@@ -8,7 +8,7 @@ namespace PersonalGateway.Skills
     internal static class BifrostSkill
     {
         public const string Identifier = "studio.tribus.personalgateway.skill.bifrost";
-        public static Skills.SkillType SkillType { get; private set; }
+        public static global::Skills.SkillType SkillType { get; private set; }
 
         public static void Register()
         {

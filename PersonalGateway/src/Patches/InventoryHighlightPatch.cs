@@ -11,8 +11,8 @@ namespace PersonalGateway.Patches
         private static readonly Color HighlightColor = new Color(1f, 0.82f, 0.18f, 1f);
 
         [HarmonyPostfix]
-        [HarmonyPatch(nameof(InventoryGrid.UpdateGui))]
-        private static void UpdateGui_Postfix(InventoryGrid __instance)
+        [HarmonyPatch(nameof(InventoryGrid.UpdateInventory))]
+        private static void UpdateInventory_Postfix(InventoryGrid __instance)
         {
             if (__instance == null || __instance.m_elements == null) return;
 
