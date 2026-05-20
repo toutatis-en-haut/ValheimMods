@@ -64,13 +64,28 @@ jobs:
       - name: Download Valheim dedicated server
         if: steps.cache-valheim.outputs.cache-hit != 'true'
         run: |
+          set -e
           mkdir -p "$HOME/valheim-server"
-          "$HOME/steamcmd/steamcmd.sh" \
-            +@sSteamCmdForcePlatformType linux \
-            +force_install_dir "$HOME/valheim-server" \
-            +login anonymous \
-            +app_update 896660 validate \
-            +quit
+          attempt=0
+          max=5
+          until [ $attempt -ge $max ]; do
+            attempt=$((attempt + 1))
+            echo "::group::SteamCMD attempt $attempt/$max"
+            if "$HOME/steamcmd/steamcmd.sh" \
+                +force_install_dir "$HOME/valheim-server" \
+                +login anonymous \
+                +app_update 896660 validate \
+                +quit; then
+              echo "::endgroup::"
+              echo "SteamCMD succeeded on attempt $attempt"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "::warning::SteamCMD attempt $attempt failed; retrying in 15s"
+            sleep 15
+          done
+          echo "::error::SteamCMD failed after $max attempts"
+          exit 1
 
       - name: Verify Valheim DLLs
         run: |
