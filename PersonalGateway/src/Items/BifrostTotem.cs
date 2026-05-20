@@ -1,0 +1,83 @@
+using Jotunn.Configs;
+using Jotunn.Entities;
+using Jotunn.Managers;
+using PersonalGateway.Config;
+using UnityEngine;
+
+namespace PersonalGateway.Items
+{
+    internal static class BifrostTotem
+    {
+        public const string PrefabName = "BifrostTotem";
+        public const string ClonedFrom = "BoneFragments";
+        public const string LocalizedNameToken = "$bifrost_totem_name";
+        public const string LocalizedDescToken = "$bifrost_totem_desc";
+
+        public static GameObject Prefab { get; private set; }
+
+        public static void Register()
+        {
+            var prefab = PrefabManager.Instance.CreateClonedPrefab(PrefabName, ClonedFrom);
+            if (prefab == null)
+            {
+                PersonalGatewayPlugin.Log.LogError($"Could not clone base prefab '{ClonedFrom}'.");
+                return;
+            }
+
+            var itemDrop = prefab.GetComponent<ItemDrop>();
+            if (itemDrop == null || itemDrop.m_itemData == null || itemDrop.m_itemData.m_shared == null)
+            {
+                PersonalGatewayPlugin.Log.LogError($"Cloned prefab '{ClonedFrom}' missing ItemDrop/SharedData.");
+                return;
+            }
+
+            var shared = itemDrop.m_itemData.m_shared;
+            var sprite = AssetLoader.TryLoadSprite("assets/icons/bifrost_totem.png", keyWhiteToAlpha: true)
+                         ?? StarIconBuilder.CreateStarSprite(128);
+            shared.m_name = LocalizedNameToken;
+            shared.m_description = LocalizedDescToken;
+            shared.m_icons = new[] { sprite };
+            shared.m_itemType = ItemDrop.ItemData.ItemType.Misc;
+            shared.m_maxStackSize = 1;
+            shared.m_weight = 0.5f;
+            shared.m_teleportable = true;
+            shared.m_questItem = false;
+
+            var item = new CustomItem(prefab, fixReference: false, new ItemConfig
+            {
+                Name = LocalizedNameToken,
+                Description = LocalizedDescToken,
+                CraftingStation = CraftingStations.Workbench,
+                MinStationLevel = GatewayConfig.CraftingStationLevel.Value,
+                Amount = 1,
+                Requirements = new[]
+                {
+                    new RequirementConfig { Item = "GreydwarfEye", Amount = GatewayConfig.IngredientGreydwarfEye.Value },
+                    new RequirementConfig { Item = "Thistle", Amount = GatewayConfig.IngredientThistle.Value },
+                    new RequirementConfig { Item = "Dandelion", Amount = GatewayConfig.IngredientDandelion.Value },
+                    new RequirementConfig { Item = "Blueberries", Amount = GatewayConfig.IngredientBlueberries.Value }
+                }
+            });
+
+            ItemManager.Instance.AddItem(item);
+            Prefab = prefab;
+            PersonalGatewayPlugin.Log.LogInfo($"Registered item '{PrefabName}'.");
+        }
+
+        public static bool IsTotem(ItemDrop.ItemData item)
+        {
+            if (item == null || item.m_dropPrefab == null) return false;
+            return item.m_dropPrefab.name == PrefabName;
+        }
+
+        public static bool PlayerHasTotem(Player player)
+        {
+            if (player == null || player.GetInventory() == null) return false;
+            foreach (var i in player.GetInventory().GetAllItems())
+            {
+                if (IsTotem(i)) return true;
+            }
+            return false;
+        }
+    }
+}

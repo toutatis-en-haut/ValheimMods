@@ -1,0 +1,116 @@
+<!--
+  PersonalGateway — BepInEx 5 plugin for Valheim.
+
+  Local build (macOS default):
+    dotnet build -c Release
+
+  Override Valheim path explicitly:
+    dotnet build -c Release /p:ValheimInstall="/path/to/Valheim"
+    dotnet build -c Release /p:ValheimManaged="/path/to/Managed"
+
+  Release builds auto-deploy DLL + assets to $(BepInExPlugins)/PersonalGateway.
+  CI (GitHub Actions) overrides ValheimManaged to point at the dedicated-server
+  Managed folder downloaded via SteamCMD.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>PersonalGateway</AssemblyName>
+    <RootNamespace>PersonalGateway</RootNamespace>
+    <Version>0.1.0</Version>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ValheimInstall Condition="'$(ValheimInstall)' == ''">$(HOME)/Library/Application Support/Steam/steamapps/common/Valheim</ValheimInstall>
+    <ValheimManaged Condition="'$(ValheimManaged)' == ''">$(ValheimInstall)/valheim.app/Contents/Resources/Data/Managed</ValheimManaged>
+    <BepInExPlugins Condition="'$(BepInExPlugins)' == ''">$(ValheimInstall)/BepInEx/plugins</BepInExPlugins>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- net462 reference assemblies (required for Linux/macOS builds without Mono) -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+
+    <!-- BepInEx + Jötunn via NuGet so CI does not need local installs. -->
+    <PackageReference Include="BepInEx.Core" Version="5.4.21" PrivateAssets="all" />
+    <PackageReference Include="Jotunn" Version="2.29.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Game assemblies — source path:
+        Local (macOS):      Valheim/valheim.app/Contents/Resources/Data/Managed
+        CI (Linux dedi):    valheim_server_Data/Managed   (override via -p:ValheimManaged=...)
+    -->
+    <Reference Include="assembly_valheim">
+      <HintPath>$(ValheimManaged)/assembly_valheim.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="assembly_utils">
+      <HintPath>$(ValheimManaged)/assembly_utils.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <Reference Include="UnityEngine">
+      <HintPath>$(ValheimManaged)/UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ValheimManaged)/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(ValheimManaged)/UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(ValheimManaged)/UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(ValheimManaged)/UnityEngine.UIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(ValheimManaged)/UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(ValheimManaged)/UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(ValheimManaged)/UnityEngine.AnimationModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(ValheimManaged)/UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.Physics2DModule">
+      <HintPath>$(ValheimManaged)/UnityEngine.Physics2DModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PluginAssets Include="assets/**/*" />
+  </ItemGroup>
+
+  <Target Name="DeployToBepInEx" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' AND Exists('$(BepInExPlugins)')">
+    <PropertyGroup>
+      <DeployDir>$(BepInExPlugins)/PersonalGateway</DeployDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(DeployDir)" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFolder="$(DeployDir)" />
+    <Copy SourceFiles="@(PluginAssets)" DestinationFiles="@(PluginAssets->'$(DeployDir)/%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Message Importance="high" Text="Deployed $(AssemblyName).dll + assets to $(DeployDir)" />
+  </Target>
+
+</Project>
