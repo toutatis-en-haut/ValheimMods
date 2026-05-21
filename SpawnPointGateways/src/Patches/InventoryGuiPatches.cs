@@ -1,6 +1,7 @@
 using HarmonyLib;
 using SpawnPointGateways.Config;
 using SpawnPointGateways.Items;
+using SpawnPointGateways.SpawnPoints;
 using SpawnPointGateways.State;
 using UnityEngine;
 
@@ -50,6 +51,10 @@ namespace SpawnPointGateways.Patches
                 player.Message(MessageHud.MessageType.Center, template.Replace("{0}", needed.ToString()));
                 return;
             }
+
+            // Prune orphan/foreign-owned spawn points before showing the markers so the
+            // map only ever offers valid destinations.
+            SpawnPointReconciler.Run(player);
 
             GatewayState.ArmForDestination();
             SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Charm armed (resin check passed: {have}/{needed}). State -> AwaitingDestination.");

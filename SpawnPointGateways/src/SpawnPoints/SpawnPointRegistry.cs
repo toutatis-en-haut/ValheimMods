@@ -80,6 +80,65 @@ namespace SpawnPointGateways.SpawnPoints
             _cachedPlayer = null;
         }
 
+        /// <summary>
+        /// Removes spawn points in the current world that have no matching bed in
+        /// <paramref name="ownedBedPositions"/>. Legacy v1 entries (no world UID) get
+        /// promoted to the current world when matched, and left untouched when not —
+        /// they may still match in a different world later.
+        /// </summary>
+        public static int PruneToMatches(Player player, ulong worldUid, List<Vector3> ownedBedPositions, float matchRadiusMeters)
+        {
+            if (player == null) return 0;
+            EnsureLoaded(player);
+
+            float matchSq = matchRadiusMeters * matchRadiusMeters;
+            int removed = 0;
+            int upgraded = 0;
+
+            for (int i = _all.Count - 1; i >= 0; i--)
+            {
+                var e = _all[i];
+                bool isCurrentWorld = e.WorldUid == worldUid;
+                bool isLegacy = e.WorldUid == NoWorld;
+                if (!isCurrentWorld && !isLegacy) continue;
+
+                bool matched = false;
+                for (int b = 0; b < ownedBedPositions.Count; b++)
+                {
+                    var bed = ownedBedPositions[b];
+                    float dx = bed.x - e.Pos.x;
+                    float dz = bed.z - e.Pos.z;
+                    if (dx * dx + dz * dz <= matchSq)
+                    {
+                        matched = true;
+                        break;
+                    }
+                }
+
+                if (matched)
+                {
+                    if (isLegacy && worldUid != NoWorld)
+                    {
+                        _all[i] = new Entry { WorldUid = worldUid, Pos = e.Pos };
+                        upgraded++;
+                    }
+                }
+                else if (isCurrentWorld)
+                {
+                    _all.RemoveAt(i);
+                    removed++;
+                }
+            }
+
+            if (removed > 0 || upgraded > 0)
+            {
+                Save(player);
+                SpawnPointGatewaysPlugin.Log?.LogInfo(
+                    $"[SPG] Reconciliation: removed {removed} orphan spawn point(s); promoted {upgraded} legacy entry/entries to world {worldUid}.");
+            }
+            return removed;
+        }
+
         private static void EnsureLoaded(Player player)
         {
             if (player == null) return;

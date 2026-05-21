@@ -82,7 +82,7 @@ Resin is only consumed on a successful teleport.
    ```
 
 4. Launch the game. On first run, a config file is generated at
-   `BepInEx/config/studio.tribus.spawnpointgateways.cfg`.
+   `BepInEx/config/toutatis.spawnpointgateways.cfg`.
 
 ### Mod Manager Install
 
@@ -94,7 +94,7 @@ your manager's import flow.
 After your first launch the config file lives at:
 
 ```
-<Valheim install>/BepInEx/config/studio.tribus.spawnpointgateways.cfg
+<Valheim install>/BepInEx/config/toutatis.spawnpointgateways.cfg
 ```
 
 | Section | Key | Default | Purpose |

@@ -19,7 +19,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>SpawnPointGateways</AssemblyName>
     <RootNamespace>SpawnPointGateways</RootNamespace>
-    <Version>0.1.3</Version>
+    <Version>0.1.4</Version>
     <Nullable>disable</Nullable>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
