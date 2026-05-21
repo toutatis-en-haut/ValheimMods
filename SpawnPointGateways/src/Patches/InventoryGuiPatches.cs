@@ -9,8 +9,6 @@ namespace SpawnPointGateways.Patches
     [HarmonyPatch(typeof(InventoryGui))]
     internal static class InventoryGuiPatches
     {
-        public const string ResinPrefab = "Resin";
-
         [HarmonyPrefix]
         [HarmonyPatch("OnRightClickItem")]
         private static bool OnRightClickItem_Prefix(InventoryGui __instance, InventoryGrid grid, ItemDrop.ItemData item, Vector2i pos)
@@ -28,15 +26,6 @@ namespace SpawnPointGateways.Patches
             return true;
         }
 
-        [HarmonyPostfix]
-        [HarmonyPatch(nameof(InventoryGui.Hide))]
-        private static void Hide_Postfix()
-        {
-            // We don't cancel an armed teleport just because the inventory closes —
-            // the user has to actually open the map to commit, and closing inventory
-            // is part of that flow.
-        }
-
         private static void HandleCharmActivation(Player player)
         {
             if (GatewayState.Phase != ArmingPhase.Idle)
@@ -51,7 +40,7 @@ namespace SpawnPointGateways.Patches
             if (inv == null) return;
 
             int needed = Mathf.Max(0, GatewayConfig.ResinCost.Value);
-            int have = inv.CountItems(ResinPrefab);
+            int have = ResinHelper.Count(inv);
             if (have < needed)
             {
                 SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Charm activated but only {have}/{needed} Resin available.");

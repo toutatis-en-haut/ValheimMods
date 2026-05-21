@@ -1,7 +1,6 @@
 using HarmonyLib;
 using SpawnPointGateways.Config;
 using SpawnPointGateways.Items;
-using SpawnPointGateways.Patches;
 using SpawnPointGateways.SpawnPoints;
 using SpawnPointGateways.State;
 using SpawnPointGateways.UI;
@@ -19,6 +18,7 @@ namespace SpawnPointGateways.Teleport
         private const float PhaseSettleSeconds = 0.20f;
 
         private static bool _pendingMapClose;
+        private static bool _mapWasOpenSinceArmed;
 
         public static void Tick()
         {
@@ -28,7 +28,11 @@ namespace SpawnPointGateways.Teleport
                 if (Minimap.instance != null) Minimap.instance.SetMapMode(Minimap.MapMode.Small);
             }
 
-            if (GatewayState.Phase != ArmingPhase.AwaitingDestination) return;
+            if (GatewayState.Phase != ArmingPhase.AwaitingDestination)
+            {
+                _mapWasOpenSinceArmed = false;
+                return;
+            }
 
             var player = Player.m_localPlayer;
             var minimap = Minimap.instance;
@@ -41,7 +45,24 @@ namespace SpawnPointGateways.Teleport
                 return;
             }
 
-            if (minimap.m_largeRoot == null || !minimap.m_largeRoot.activeSelf) return;
+            bool largeMapOpen = minimap.m_largeRoot != null && minimap.m_largeRoot.activeSelf;
+            if (largeMapOpen)
+            {
+                _mapWasOpenSinceArmed = true;
+            }
+            else if (_mapWasOpenSinceArmed)
+            {
+                // Player closed the map after we armed → treat as cancel.
+                SpawnPointGatewaysPlugin.Log?.LogInfo("[SPG] Map closed while armed: cancelling.");
+                player.Message(MessageHud.MessageType.Center, "$bifrost_charm_msg_cancelled");
+                Cancel();
+                return;
+            }
+            else
+            {
+                // Map hasn't opened yet (settle window between charm click and map open).
+                return;
+            }
 
             // Brief settle window so the right-click that triggered activation isn't
             // read as an immediate cancel.
@@ -81,6 +102,7 @@ namespace SpawnPointGateways.Teleport
             GatewayState.Reset();
             TeleportCursor.ForceReset();
             SpawnMarkerOverlay.Hide();
+            _mapWasOpenSinceArmed = false;
         }
 
         private static bool IsMouseOverMap(Minimap minimap)
@@ -143,7 +165,7 @@ namespace SpawnPointGateways.Teleport
             // used some between arming and clicking a marker.
             var inv = player.GetInventory();
             int needed = Mathf.Max(0, GatewayConfig.ResinCost.Value);
-            int have = inv != null ? inv.CountItems(InventoryGuiPatches.ResinPrefab) : 0;
+            int have = ResinHelper.Count(inv);
             if (have < needed)
             {
                 SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Teleport aborted: resin dropped to {have}/{needed}.");
@@ -155,10 +177,7 @@ namespace SpawnPointGateways.Teleport
                 return;
             }
 
-            if (needed > 0 && inv != null)
-            {
-                inv.RemoveItem(InventoryGuiPatches.ResinPrefab, needed);
-            }
+            ResinHelper.Remove(inv, needed);
 
             dest.y = ResolveSafeY(dest);
 

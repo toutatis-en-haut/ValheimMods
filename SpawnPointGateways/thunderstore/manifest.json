@@ -1,6 +1,6 @@
 {
   "name": "SpawnPointGateways",
-  "version_number": "0.1.2",
+  "version_number": "0.1.3",
   "website_url": "https://github.com/toutatis-en-haut/ValheimMods",
   "description": "Bifrost Charm — burn resin to open the map and step to any bed you ever called home.",
   "dependencies": [
