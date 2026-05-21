@@ -48,18 +48,17 @@ remains as a possible destination.
 The full flow is:
 
 1. **Activate the Charm.** Right-click the charm in your inventory. If you
-   have fewer than 20 resin, nothing happens. Otherwise, 20 resin are consumed
-   and the world map opens.
+   have fewer than 20 resin, nothing happens. Otherwise the world map opens.
 2. **Pick a Marker.** Every bed you have ever called home appears on the map
    as a small blue circle. The markers stay the same size as you zoom — they
    never grow.
 3. **Click a Marker.** Click any blue circle to teleport. The bridge opens;
-   you arrive at that bed.
+   20 resin are consumed; you arrive at that bed.
 
 Clicking anywhere off a marker does nothing — only marker clicks teleport.
 
-Right-click the map or press Esc to cancel before clicking a marker. (Note:
-the 20 resin are spent the moment you activate the charm, not on teleport.)
+Right-click the map or press Esc to cancel without spending any resin.
+Resin is only consumed on a successful teleport.
 
 ## Installation
 

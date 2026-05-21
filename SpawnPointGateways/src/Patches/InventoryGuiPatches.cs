@@ -62,13 +62,8 @@ namespace SpawnPointGateways.Patches
                 return;
             }
 
-            if (needed > 0)
-            {
-                inv.RemoveItem(ResinPrefab, needed);
-            }
-
             GatewayState.ArmForDestination();
-            SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Charm armed; {needed} Resin consumed. State -> AwaitingDestination.");
+            SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Charm armed (resin check passed: {have}/{needed}). State -> AwaitingDestination.");
             player.Message(MessageHud.MessageType.Center, "$bifrost_charm_msg_channel");
 
             if (InventoryGui.instance != null)

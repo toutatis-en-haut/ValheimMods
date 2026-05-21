@@ -16,7 +16,7 @@ namespace SpawnPointGateways
     {
         public const string ModGuid = "studio.tribus.spawnpointgateways";
         public const string ModName = "Spawn Point Gateways";
-        public const string ModVersion = "0.1.0";
+        public const string ModVersion = "0.1.1";
 
         internal static ManualLogSource Log;
         internal static Harmony Harmony;

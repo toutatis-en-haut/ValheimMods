@@ -1,6 +1,7 @@
 using HarmonyLib;
 using SpawnPointGateways.Config;
 using SpawnPointGateways.Items;
+using SpawnPointGateways.Patches;
 using SpawnPointGateways.SpawnPoints;
 using SpawnPointGateways.State;
 using SpawnPointGateways.UI;
@@ -138,10 +139,31 @@ namespace SpawnPointGateways.Teleport
 
         private static void TryTeleport(Player player, Vector3 dest)
         {
+            // Re-check resin at the moment of commit — the player could have dropped or
+            // used some between arming and clicking a marker.
+            var inv = player.GetInventory();
+            int needed = Mathf.Max(0, GatewayConfig.ResinCost.Value);
+            int have = inv != null ? inv.CountItems(InventoryGuiPatches.ResinPrefab) : 0;
+            if (have < needed)
+            {
+                SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Teleport aborted: resin dropped to {have}/{needed}.");
+                var template = Localization.instance != null
+                    ? Localization.instance.Localize("$bifrost_charm_msg_no_resin")
+                    : "Not enough resin ({0} needed).";
+                player.Message(MessageHud.MessageType.Center, template.Replace("{0}", needed.ToString()));
+                Cancel();
+                return;
+            }
+
+            if (needed > 0 && inv != null)
+            {
+                inv.RemoveItem(InventoryGuiPatches.ResinPrefab, needed);
+            }
+
             dest.y = ResolveSafeY(dest);
 
             SpawnPointGatewaysPlugin.Log?.LogInfo(
-                $"[SPG] Teleport: ({dest.x:F1}, {dest.y:F1}, {dest.z:F1}).");
+                $"[SPG] Teleport: ({dest.x:F1}, {dest.y:F1}, {dest.z:F1}); {needed} Resin consumed.");
 
             player.TeleportTo(dest, player.transform.rotation, distantTeleport: true);
 
