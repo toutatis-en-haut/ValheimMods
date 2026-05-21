@@ -217,7 +217,8 @@ namespace PersonalGateway.Teleport
             _firstClickArmed = false;
             _pendingMapClose = true;
 
-            var msg = Localization.instance.Localize("$bifrost_msg_teleported", trophyName);
+            var template = Localization.instance.Localize("$bifrost_msg_teleported");
+            var msg = template.Replace("{0}", trophyName);
             player.Message(MessageHud.MessageType.Center, msg);
         }
 
