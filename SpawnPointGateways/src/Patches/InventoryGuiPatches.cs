@@ -1,0 +1,84 @@
+using HarmonyLib;
+using SpawnPointGateways.Config;
+using SpawnPointGateways.Items;
+using SpawnPointGateways.State;
+using UnityEngine;
+
+namespace SpawnPointGateways.Patches
+{
+    [HarmonyPatch(typeof(InventoryGui))]
+    internal static class InventoryGuiPatches
+    {
+        public const string ResinPrefab = "Resin";
+
+        [HarmonyPrefix]
+        [HarmonyPatch("OnRightClickItem")]
+        private static bool OnRightClickItem_Prefix(InventoryGui __instance, InventoryGrid grid, ItemDrop.ItemData item, Vector2i pos)
+        {
+            if (item == null) return true;
+            var player = Player.m_localPlayer;
+            if (player == null) return true;
+
+            if (BifrostCharm.IsCharm(item))
+            {
+                HandleCharmActivation(player);
+                return false;
+            }
+
+            return true;
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(nameof(InventoryGui.Hide))]
+        private static void Hide_Postfix()
+        {
+            // We don't cancel an armed teleport just because the inventory closes —
+            // the user has to actually open the map to commit, and closing inventory
+            // is part of that flow.
+        }
+
+        private static void HandleCharmActivation(Player player)
+        {
+            if (GatewayState.Phase != ArmingPhase.Idle)
+            {
+                SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Re-clicked charm while in '{GatewayState.Phase}'; cancelling.");
+                GatewayState.Reset();
+                player.Message(MessageHud.MessageType.Center, "$bifrost_charm_msg_cancelled");
+                return;
+            }
+
+            var inv = player.GetInventory();
+            if (inv == null) return;
+
+            int needed = Mathf.Max(0, GatewayConfig.ResinCost.Value);
+            int have = inv.CountItems(ResinPrefab);
+            if (have < needed)
+            {
+                SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Charm activated but only {have}/{needed} Resin available.");
+                var template = Localization.instance != null
+                    ? Localization.instance.Localize("$bifrost_charm_msg_no_resin")
+                    : "Not enough resin ({0} needed).";
+                player.Message(MessageHud.MessageType.Center, template.Replace("{0}", needed.ToString()));
+                return;
+            }
+
+            if (needed > 0)
+            {
+                inv.RemoveItem(ResinPrefab, needed);
+            }
+
+            GatewayState.ArmForDestination();
+            SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Charm armed; {needed} Resin consumed. State -> AwaitingDestination.");
+            player.Message(MessageHud.MessageType.Center, "$bifrost_charm_msg_channel");
+
+            if (InventoryGui.instance != null)
+            {
+                InventoryGui.instance.Hide();
+            }
+            if (Minimap.instance != null)
+            {
+                Minimap.instance.SetMapMode(Minimap.MapMode.Large);
+            }
+        }
+    }
+}

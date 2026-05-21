@@ -1,0 +1,174 @@
+name: Spawn Point Gateways
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'SpawnPointGateways/**'
+      - '.github/workflows/spawn-point-gateways.yml'
+    tags:
+      - 'spawnpointgateways-v*'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'SpawnPointGateways/**'
+      - '.github/workflows/spawn-point-gateways.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  THUNDERSTORE_TEAM: Toutatis
+  MOD_NAME: SpawnPointGateways
+
+jobs:
+  build:
+    name: Build & package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('SpawnPointGateways/SpawnPointGateways.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Install SteamCMD prerequisites
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates curl tar \
+            lib32gcc-s1 lib32stdc++6
+          mkdir -p "$HOME/steamcmd"
+          curl -fsSL https://media.steampowered.com/installer/steamcmd_linux.tar.gz \
+            | tar -xz -C "$HOME/steamcmd"
+          chmod +x "$HOME/steamcmd/steamcmd.sh"
+          [ -f "$HOME/steamcmd/linux32/steamcmd" ] && chmod +x "$HOME/steamcmd/linux32/steamcmd" || true
+          ls -la "$HOME/steamcmd"
+
+      - name: Cache Valheim dedicated server
+        id: cache-valheim
+        uses: actions/cache@v4
+        with:
+          path: ~/valheim-server
+          key: valheim-server-${{ runner.os }}-v1
+
+      - name: Download Valheim dedicated server
+        if: steps.cache-valheim.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          mkdir -p "$HOME/valheim-server"
+          attempt=0
+          max=5
+          until [ $attempt -ge $max ]; do
+            attempt=$((attempt + 1))
+            echo "::group::SteamCMD attempt $attempt/$max"
+            if "$HOME/steamcmd/steamcmd.sh" \
+                +force_install_dir "$HOME/valheim-server" \
+                +login anonymous \
+                +app_update 896660 validate \
+                +quit; then
+              echo "::endgroup::"
+              echo "SteamCMD succeeded on attempt $attempt"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "::warning::SteamCMD attempt $attempt failed; retrying in 15s"
+            sleep 15
+          done
+          echo "::error::SteamCMD failed after $max attempts"
+          exit 1
+
+      - name: Verify Valheim DLLs
+        run: |
+          MANAGED="$HOME/valheim-server/valheim_server_Data/Managed"
+          test -f "$MANAGED/assembly_valheim.dll" || { echo "::error::assembly_valheim.dll not found at $MANAGED"; ls -la "$HOME/valheim-server" || true; exit 1; }
+          echo "Managed DLLs found at $MANAGED"
+
+      - name: Download Jötunn from Thunderstore
+        env:
+          JOTUNN_VERSION: 2.29.0
+        run: |
+          set -e
+          sudo apt-get install -y --no-install-recommends unzip
+          mkdir -p "$HOME/jotunn"
+          curl -fsSL -o /tmp/jotunn.zip \
+            "https://thunderstore.io/package/download/ValheimModding/Jotunn/${JOTUNN_VERSION}/"
+          unzip -o /tmp/jotunn.zip -d "$HOME/jotunn" > /dev/null
+          DLL_PATH=$(find "$HOME/jotunn" -name 'Jotunn.dll' -print -quit)
+          if [ -z "$DLL_PATH" ]; then
+            echo "::error::Jotunn.dll not found in Thunderstore zip"
+            find "$HOME/jotunn" -type f
+            exit 1
+          fi
+          JOTUNN_DIR=$(dirname "$DLL_PATH")
+          echo "JotunnPath=$JOTUNN_DIR" >> "$GITHUB_ENV"
+          echo "Resolved JotunnPath=$JOTUNN_DIR"
+
+      - name: Restore
+        working-directory: SpawnPointGateways
+        run: dotnet restore
+
+      - name: Build (Release)
+        working-directory: SpawnPointGateways
+        run: |
+          dotnet build -c Release --no-restore \
+            -p:ValheimManaged="$HOME/valheim-server/valheim_server_Data/Managed" \
+            -p:JotunnPath="$JotunnPath"
+
+      - name: Resolve release filename
+        working-directory: SpawnPointGateways
+        run: |
+          set -e
+          VERSION=$(jq -r .version_number thunderstore/manifest.json)
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "::error::version_number missing from thunderstore/manifest.json"
+            exit 1
+          fi
+          RELEASE_NAME="${THUNDERSTORE_TEAM}-${MOD_NAME}-${VERSION}"
+          RELEASE_FILE="${RELEASE_NAME}.zip"
+          echo "RELEASE_NAME=$RELEASE_NAME" >> "$GITHUB_ENV"
+          echo "RELEASE_FILE=$RELEASE_FILE" >> "$GITHUB_ENV"
+          echo "MOD_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Release artifact will be: $RELEASE_FILE"
+
+      - name: Stage release contents (Thunderstore layout)
+        working-directory: SpawnPointGateways
+        run: |
+          set -e
+          rm -rf release
+          mkdir -p release/plugins
+          cp bin/Release/SpawnPointGateways.dll release/plugins/
+          if [ -d assets ]; then cp -r assets release/plugins/; fi
+          cp thunderstore/manifest.json release/
+          cp thunderstore/icon.png release/
+          cp thunderstore/README.md release/
+          cd release && zip -r "../$RELEASE_FILE" .
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.RELEASE_NAME }}
+          path: SpawnPointGateways/${{ env.RELEASE_FILE }}
+          if-no-files-found: error
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/spawnpointgateways-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: SpawnPointGateways/${{ env.RELEASE_FILE }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
