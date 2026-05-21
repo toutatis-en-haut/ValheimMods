@@ -6,19 +6,20 @@ namespace SpawnPointGateways.Patches
 {
     /// <summary>
     /// Records every bed position the local player marks as their spawn.
-    /// Hooks Player.SetCustomSpawnPoint, which is the choke point every "Set Spawn"
-    /// path goes through (bed interact, debug commands, …).
+    /// Hooks <see cref="PlayerProfile.SetCustomSpawnPoint"/>, which Bed.Interact
+    /// calls in both the first-claim and re-claim branches — every other vanilla
+    /// path writes the profile's spawn fields directly, so this is the single
+    /// chokepoint for interactive "Set Spawn" events on a bed.
     /// </summary>
-    [HarmonyPatch(typeof(Player))]
+    [HarmonyPatch(typeof(PlayerProfile), nameof(PlayerProfile.SetCustomSpawnPoint), new[] { typeof(Vector3) })]
     internal static class BedSpawnPatch
     {
         [HarmonyPostfix]
-        [HarmonyPatch("SetCustomSpawnPoint")]
-        private static void SetCustomSpawnPoint_Postfix(Player __instance, Vector3 point)
+        private static void Postfix(Vector3 point)
         {
-            if (__instance == null) return;
-            if (__instance != Player.m_localPlayer) return;
-            SpawnPointRegistry.Record(__instance, point);
+            var player = Player.m_localPlayer;
+            if (player == null) return;
+            SpawnPointRegistry.Record(player, point);
         }
     }
 }
