@@ -13,6 +13,7 @@ namespace PersonalGateway.UI
         private static RectTransform _rt;
         private static Image _img;
         private static Sprite _ringSprite;
+        private static float _ringSpriteThickness = -1f;
         private static System.Reflection.MethodInfo _worldToMapPointMethod;
 
         public static void Tick()
@@ -49,11 +50,18 @@ namespace PersonalGateway.UI
             if (minimap.m_mapImageLarge == null) return false;
             var parent = (RectTransform)minimap.m_mapImageLarge.transform;
 
+            float thickness = Mathf.Clamp(GatewayConfig.RangeCircleThickness.Value, 0.01f, 0.5f);
+            bool spriteOutOfDate = _ringSprite == null || !Mathf.Approximately(_ringSpriteThickness, thickness);
+            if (spriteOutOfDate)
+            {
+                _ringSprite = CircleSpriteBuilder.CreateRingSprite(256, 1f - thickness, 1f);
+                _ringSpriteThickness = thickness;
+            }
+
             if (_go == null || _rt == null || _rt.transform.parent != parent)
             {
                 if (_go != null) UnityEngine.Object.Destroy(_go);
 
-                _ringSprite = CircleSpriteBuilder.CreateRingSprite(256, 0.88f, 1.0f);
                 _go = new GameObject("BifrostRangeOverlay", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
                 _rt = (RectTransform)_go.transform;
                 _rt.SetParent(parent, false);
@@ -65,6 +73,10 @@ namespace PersonalGateway.UI
                 _img.raycastTarget = false;
                 _img.preserveAspect = true;
                 _img.type = Image.Type.Simple;
+            }
+            else if (spriteOutOfDate && _img != null)
+            {
+                _img.sprite = _ringSprite;
             }
             return true;
         }
