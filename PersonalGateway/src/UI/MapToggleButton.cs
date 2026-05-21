@@ -48,7 +48,7 @@ namespace PersonalGateway.UI
         {
             if (_go != null && _go.transform.parent != null) return true;
 
-            _sourceButton = FindPublicPositionButton(minimap);
+            _sourceButton = FindToggleSourceButton(minimap);
             if (_sourceButton == null)
             {
                 if (!_sourceMissingLogged)
@@ -66,23 +66,22 @@ namespace PersonalGateway.UI
             clone.name = "BifrostRangeToggle";
             _go = clone;
 
-            var rt = (RectTransform)clone.transform;
-            rt.anchorMin = sourceRt.anchorMin;
-            rt.anchorMax = sourceRt.anchorMax;
-            rt.pivot = sourceRt.pivot;
-            rt.sizeDelta = sourceRt.sizeDelta;
+            // The parent owns a layout group, so anchoredPosition won't take effect.
+            // Move our clone to the top of the sibling order; the layout group will
+            // re-flow everything underneath with the correct spacing/background.
+            clone.transform.SetAsFirstSibling();
 
-            float topY = sourceRt.anchoredPosition.y;
-            for (int i = 0; i < parent.childCount; i++)
+            // Force the layout to recalculate so our clone gets a proper rect this frame.
+            if (parent is RectTransform parentRt)
             {
-                var child = parent.GetChild(i);
-                if (child == clone.transform) continue;
-                if (!(child is RectTransform crt)) continue;
-                bool isInteractive = child.GetComponent<Button>() != null || child.GetComponent<Toggle>() != null;
-                if (!isInteractive) continue;
-                if (crt.anchoredPosition.y > topY) topY = crt.anchoredPosition.y;
+                UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(parentRt);
             }
-            rt.anchoredPosition = new Vector2(sourceRt.anchoredPosition.x, topY + sourceRt.sizeDelta.y + 6f);
+
+            // The cloned toggle inherits its source's ToggleGroup membership, which makes
+            // it mutually exclusive with "Visible to other players". Cut that tie so our
+            // toggle is independent.
+            var inheritedToggle = clone.GetComponent<Toggle>();
+            if (inheritedToggle != null) inheritedToggle.group = null;
 
             StripLocalizeComponents(clone);
             CaptureLabelTargets(clone);
@@ -181,32 +180,79 @@ namespace PersonalGateway.UI
             }
         }
 
-        private static GameObject FindPublicPositionButton(Minimap minimap)
+        private static GameObject FindToggleSourceButton(Minimap minimap)
         {
-            string[] candidates = { "m_publicPosition", "m_publicPositionToggle", "m_publicCheck" };
-            foreach (var name in candidates)
+            // Prefer the Cartography Table toggle (hex radio style) per the design intent.
+            string[] cartographyFields = { "m_sharedMapToggle", "m_cartographyToggle", "m_sharedToggle" };
+            foreach (var name in cartographyFields)
             {
-                var field = AccessTools.Field(typeof(Minimap), name);
-                if (field == null) continue;
-                var value = field.GetValue(minimap);
-                if (value is GameObject go) return go;
-                if (value is Component c && c != null) return c.gameObject;
+                var go = TryReadFieldAsGameObject(minimap, name);
+                if (go != null)
+                {
+                    PersonalGatewayPlugin.Log?.LogInfo($"MapToggleButton: source = Minimap.{name} (cartography toggle).");
+                    return go;
+                }
             }
+
+            // Resolve the public-position toggle and scan its siblings for a cartography-labelled button.
+            GameObject publicPos = null;
+            foreach (var name in new[] { "m_publicPosition", "m_publicPositionToggle", "m_publicCheck" })
+            {
+                publicPos = TryReadFieldAsGameObject(minimap, name);
+                if (publicPos != null) break;
+            }
+
+            if (publicPos != null && publicPos.transform.parent != null)
+            {
+                var parent = publicPos.transform.parent;
+                for (int i = 0; i < parent.childCount; i++)
+                {
+                    var child = parent.GetChild(i);
+                    if (child.gameObject == publicPos) continue;
+                    var label = FindAnyTextString(child.gameObject);
+                    if (label == null) continue;
+                    if (label.IndexOf("cartograph", System.StringComparison.OrdinalIgnoreCase) >= 0
+                        || label.IndexOf("table", System.StringComparison.OrdinalIgnoreCase) >= 0
+                        || label.IndexOf("shared", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        PersonalGatewayPlugin.Log?.LogInfo($"MapToggleButton: source = sibling '{child.name}' (label: '{label}').");
+                        return child.gameObject;
+                    }
+                }
+            }
+
             if (minimap.m_largeRoot != null)
             {
-                var found = minimap.m_largeRoot.GetComponentsInChildren<Button>(includeInactive: true);
-                foreach (var b in found)
+                var buttons = minimap.m_largeRoot.GetComponentsInChildren<Button>(includeInactive: true);
+                foreach (var b in buttons)
                 {
                     if (b == null) continue;
                     var label = FindAnyTextString(b.gameObject);
                     if (label == null) continue;
-                    if (label.IndexOf("public", System.StringComparison.OrdinalIgnoreCase) >= 0
-                        || label.IndexOf("visible", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    if (label.IndexOf("cartograph", System.StringComparison.OrdinalIgnoreCase) >= 0)
                     {
+                        PersonalGatewayPlugin.Log?.LogInfo($"MapToggleButton: source = deep-scan '{b.gameObject.name}' (cartography by label).");
                         return b.gameObject;
                     }
                 }
             }
+
+            if (publicPos != null)
+            {
+                PersonalGatewayPlugin.Log?.LogInfo("MapToggleButton: cartography toggle not located; falling back to public-position toggle as source.");
+                return publicPos;
+            }
+
+            return null;
+        }
+
+        private static GameObject TryReadFieldAsGameObject(Minimap minimap, string fieldName)
+        {
+            var field = AccessTools.Field(typeof(Minimap), fieldName);
+            if (field == null) return null;
+            var value = field.GetValue(minimap);
+            if (value is GameObject go) return go;
+            if (value is Component c && c != null) return c.gameObject;
             return null;
         }
 
