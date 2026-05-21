@@ -16,9 +16,9 @@ namespace PersonalGateway
     [NetworkCompatibility(CompatibilityLevel.NotEnforced, VersionStrictness.None)]
     public class PersonalGatewayPlugin : BaseUnityPlugin
     {
-        public const string ModGuid = "studio.tribus.personalgateway";
+        public const string ModGuid = "toutatis.personalgateway";
         public const string ModName = "Personal Gateway";
-        public const string ModVersion = "0.1.0";
+        public const string ModVersion = "0.2.8";
 
         internal static ManualLogSource Log;
         internal static Harmony Harmony;

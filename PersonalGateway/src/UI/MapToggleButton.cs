@@ -62,20 +62,37 @@ namespace PersonalGateway.UI
             var sourceRt = (RectTransform)_sourceButton.transform;
             var parent = sourceRt.parent;
 
-            var clone = UnityEngine.Object.Instantiate(_sourceButton, parent);
-            clone.name = "BifrostRangeToggle";
-            _go = clone;
-
-            // The parent owns a layout group, so anchoredPosition won't take effect.
-            // Move our clone to the top of the sibling order; the layout group will
-            // re-flow everything underneath with the correct spacing/background.
-            clone.transform.SetAsFirstSibling();
-
-            // Force the layout to recalculate so our clone gets a proper rect this frame.
+            // Make sure the source's layout is settled before we read its height.
             if (parent is RectTransform parentRt)
             {
                 UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(parentRt);
             }
+
+            var clone = UnityEngine.Object.Instantiate(_sourceButton, parent);
+            clone.name = "BifrostRangeToggle";
+            _go = clone;
+
+            // Earlier versions assumed the source's parent owned a VerticalLayoutGroup
+            // that would re-flow children after SetAsFirstSibling. Current Valheim doesn't
+            // — the toggles are positioned by anchored coordinates, so a cloned child
+            // lands on top of its source. Position the clone manually instead, and opt it
+            // out of any layout group that might still be present.
+            var cloneRt = (RectTransform)clone.transform;
+            cloneRt.anchorMin = sourceRt.anchorMin;
+            cloneRt.anchorMax = sourceRt.anchorMax;
+            cloneRt.pivot = sourceRt.pivot;
+            cloneRt.sizeDelta = sourceRt.sizeDelta;
+
+            const float spacingPixels = 6f;
+            float stackHeight = sourceRt.rect.height > 0f ? sourceRt.rect.height : sourceRt.sizeDelta.y;
+            if (stackHeight <= 0f) stackHeight = 48f;
+            cloneRt.anchoredPosition = sourceRt.anchoredPosition + new Vector2(0f, stackHeight + spacingPixels);
+
+            var layoutElement = clone.GetComponent<UnityEngine.UI.LayoutElement>()
+                                ?? clone.AddComponent<UnityEngine.UI.LayoutElement>();
+            layoutElement.ignoreLayout = true;
+
+            clone.transform.SetAsLastSibling();
 
             // The cloned toggle inherits its source's ToggleGroup membership, which makes
             // it mutually exclusive with "Visible to other players". Cut that tie so our
@@ -223,16 +240,26 @@ namespace PersonalGateway.UI
 
             if (minimap.m_largeRoot != null)
             {
-                var buttons = minimap.m_largeRoot.GetComponentsInChildren<Button>(includeInactive: true);
-                foreach (var b in buttons)
+                // In current Valheim the Cartography Table widget is a Toggle, not a
+                // Button (the hex radio indicator), so we have to check both component
+                // types or we silently fall back to the public-position toggle.
+                var candidates = new List<GameObject>();
+                foreach (var b in minimap.m_largeRoot.GetComponentsInChildren<Button>(includeInactive: true))
                 {
-                    if (b == null) continue;
-                    var label = FindAnyTextString(b.gameObject);
+                    if (b != null) candidates.Add(b.gameObject);
+                }
+                foreach (var t in minimap.m_largeRoot.GetComponentsInChildren<Toggle>(includeInactive: true))
+                {
+                    if (t != null) candidates.Add(t.gameObject);
+                }
+                foreach (var go in candidates)
+                {
+                    var label = FindAnyTextString(go);
                     if (label == null) continue;
                     if (label.IndexOf("cartograph", System.StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        PersonalGatewayPlugin.Log?.LogInfo($"MapToggleButton: source = deep-scan '{b.gameObject.name}' (cartography by label).");
-                        return b.gameObject;
+                        PersonalGatewayPlugin.Log?.LogInfo($"MapToggleButton: source = deep-scan '{go.name}' (cartography by label).");
+                        return go;
                     }
                 }
             }
