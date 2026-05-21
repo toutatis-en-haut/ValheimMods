@@ -1,6 +1,6 @@
 {
   "name": "Personal_Gateway",
-  "version_number": "0.2.4",
+  "version_number": "0.2.5",
   "website_url": "https://github.com/toutatis-en-haut/ValheimMods",
   "description": "Heimdall's Bifrost Totem - sacrifice a trophy, click the map, step across the world.",
   "dependencies": [

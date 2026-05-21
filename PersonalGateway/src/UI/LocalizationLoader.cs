@@ -22,7 +22,7 @@ namespace PersonalGateway.UI
                 { "bifrost_skill_desc", "Mastery over Heimdall's bridge. Higher mastery lets you cross greater distances in a single step." },
                 { "bifrost_msg_armed", "The totem hums. Choose a trophy to sacrifice." },
                 { "bifrost_msg_no_trophies", "You hold no trophy to sacrifice." },
-                { "bifrost_msg_channel", "The Bifröst gathers. Open your map and Ctrl+double-click your destination." },
+                { "bifrost_msg_channel", "The Bifröst gathers. Open your map and click your destination." },
                 { "bifrost_msg_cancelled", "The Bifröst fades." },
                 { "bifrost_msg_too_far", "Beyond the bridge's reach." },
                 { "bifrost_msg_unknown", "The stars cannot find a place you have not seen." },
