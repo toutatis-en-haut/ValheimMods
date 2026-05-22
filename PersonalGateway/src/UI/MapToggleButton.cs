@@ -21,6 +21,7 @@ namespace PersonalGateway.UI
         private static readonly List<Component> _labelTargets = new List<Component>();
         private static readonly List<PropertyInfo> _labelProperties = new List<PropertyInfo>();
         private static bool _anchorMissingLogged;
+        private static GameObject _cachedAnchor;
 
         public static void Tick()
         {
@@ -171,7 +172,10 @@ namespace PersonalGateway.UI
             rt.pivot = anchorRt.pivot;
             rt.sizeDelta = anchorRt.sizeDelta;
             rt.localScale = anchorRt.localScale;
-            rt.anchoredPosition = anchorRt.anchoredPosition + new Vector2(0f, anchorRt.sizeDelta.y + vOffset);
+            // rect.size is the resolved rendered height of the anchor (sizeDelta.y is
+            // often 0 when the rect is anchor-stretched, which collapsed the offset).
+            float anchorHeight = anchorRt.rect.size.y;
+            rt.anchoredPosition = anchorRt.anchoredPosition + new Vector2(0f, anchorHeight + vOffset);
         }
 
         private static void OnClicked()
@@ -230,12 +234,20 @@ namespace PersonalGateway.UI
         private static GameObject FindCartographyAnchor(Minimap minimap)
         {
             if (minimap == null) return null;
+            if (_cachedAnchor != null && _cachedAnchor.transform != null && _cachedAnchor.transform.parent != null)
+            {
+                return _cachedAnchor;
+            }
 
             string[] cartographyFields = { "m_sharedMapToggle", "m_cartographyToggle", "m_sharedToggle" };
             foreach (var name in cartographyFields)
             {
                 var go = TryReadFieldAsGameObject(minimap, name);
-                if (go != null) return go;
+                if (go != null)
+                {
+                    _cachedAnchor = go;
+                    return go;
+                }
             }
 
             GameObject publicPos = null;
@@ -259,11 +271,13 @@ namespace PersonalGateway.UI
                         || label.IndexOf("table", System.StringComparison.OrdinalIgnoreCase) >= 0
                         || label.IndexOf("shared", System.StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        return child.gameObject;
+                        _cachedAnchor = child.gameObject;
+                        return _cachedAnchor;
                     }
                 }
             }
 
+            _cachedAnchor = publicPos;
             return publicPos;
         }
 
@@ -290,9 +304,13 @@ namespace PersonalGateway.UI
 
         private static GameObject TryReadFieldAsGameObject(Minimap minimap, string fieldName)
         {
-            var field = AccessTools.Field(typeof(Minimap), fieldName);
+            // Use direct reflection rather than AccessTools.Field so that missing
+            // fields don't spam "Could not find field" warnings every time we look.
+            var field = typeof(Minimap).GetField(
+                fieldName,
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
             if (field == null) return null;
-            var value = field.GetValue(minimap);
+            var value = field.GetValue(field.IsStatic ? null : (object)minimap);
             if (value is GameObject go) return go;
             if (value is Component c && c != null) return c.gameObject;
             return null;
