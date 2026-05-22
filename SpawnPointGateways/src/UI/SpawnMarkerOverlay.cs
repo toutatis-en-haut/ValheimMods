@@ -95,6 +95,9 @@ namespace SpawnPointGateways.UI
             }
 
             _root.gameObject.SetActive(true);
+            // Force markers to the top of the z-order each frame so vanilla map UI
+            // (player marker, pins, the cart/cargo icons) can't render over them.
+            _root.SetAsLastSibling();
             return true;
         }
 
