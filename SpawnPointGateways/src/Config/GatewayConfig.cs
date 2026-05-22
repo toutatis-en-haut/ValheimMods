@@ -5,7 +5,9 @@ namespace SpawnPointGateways.Config
 {
     internal static class GatewayConfig
     {
-        public static ConfigEntry<int> ResinCost;
+        public static ConfigEntry<bool> CostEnabled;
+        public static ConfigEntry<string> CostItem;
+        public static ConfigEntry<int> CostAmount;
 
         public static ConfigEntry<int> IngredientGreydwarfEye;
         public static ConfigEntry<int> IngredientFineWood;
@@ -19,9 +21,15 @@ namespace SpawnPointGateways.Config
 
         public static void Bind(ConfigFile cfg)
         {
-            ResinCost = cfg.Bind(
-                "Activation", "ResinCost", 20,
-                "Resin consumed each time the Bifröst Charm is activated.");
+            CostEnabled = cfg.Bind(
+                "Activation", "CostEnabled", true,
+                "If true (default), activating the charm consumes CostAmount of CostItem from your inventory. Set to false to make the charm free — useful for server admins running a creative or low-friction mode.");
+            CostItem = cfg.Bind(
+                "Activation", "CostItem", "Resin",
+                "Prefab name of the item consumed on activation. Default is 'Resin'. Any vanilla or modded item prefab name works (e.g. 'Coins', 'GoldNugget', 'Thistle'). Case-sensitive.");
+            CostAmount = cfg.Bind(
+                "Activation", "CostAmount", 20,
+                "Amount of CostItem consumed each time the Bifröst Charm is activated. Ignored when CostEnabled is false.");
 
             IngredientGreydwarfEye = cfg.Bind("Recipe", "GreydwarfEye", 10, "Greydwarf Eyes required to craft the Bifröst Charm.");
             IngredientFineWood = cfg.Bind("Recipe", "FineWood", 1, "Fine Wood required to craft the Bifröst Charm.");

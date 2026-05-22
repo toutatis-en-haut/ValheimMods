@@ -161,23 +161,31 @@ namespace SpawnPointGateways.Teleport
 
         private static void TryTeleport(Player player, Vector3 dest)
         {
-            // Re-check resin at the moment of commit — the player could have dropped or
-            // used some between arming and clicking a marker.
+            // Re-check the activation cost at the moment of commit — the player could
+            // have dropped or used some between arming and clicking a marker.
             var inv = player.GetInventory();
-            int needed = Mathf.Max(0, GatewayConfig.ResinCost.Value);
-            int have = ResinHelper.Count(inv);
-            if (have < needed)
+            bool costEnabled = GatewayConfig.CostEnabled.Value;
+            string costPrefab = GatewayConfig.CostItem.Value;
+            int needed = costEnabled ? Mathf.Max(0, GatewayConfig.CostAmount.Value) : 0;
+            int have = costEnabled ? CostItemHelper.Count(inv, costPrefab) : 0;
+
+            if (costEnabled && have < needed)
             {
-                SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Teleport aborted: resin dropped to {have}/{needed}.");
+                string itemDisplay = CostItemHelper.ResolveDisplayName(costPrefab);
+                SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Teleport aborted: {costPrefab} dropped to {have}/{needed}.");
                 var template = Localization.instance != null
-                    ? Localization.instance.Localize("$bifrost_charm_msg_no_resin")
-                    : "Not enough resin ({0} needed).";
-                player.Message(MessageHud.MessageType.Center, template.Replace("{0}", needed.ToString()));
+                    ? Localization.instance.Localize("$bifrost_charm_msg_no_cost")
+                    : "You need {0} {1} to light the charm.";
+                player.Message(MessageHud.MessageType.Center,
+                    template.Replace("{0}", needed.ToString()).Replace("{1}", itemDisplay));
                 Cancel();
                 return;
             }
 
-            ResinHelper.Remove(inv, needed);
+            if (costEnabled && needed > 0)
+            {
+                CostItemHelper.Remove(inv, costPrefab, needed);
+            }
 
             // Trust the stored Y — it came from PlayerProfile.SetCustomSpawnPoint, which is
             // Valheim's own canonical respawn position for the bed (accounts for floors and
@@ -190,7 +198,9 @@ namespace SpawnPointGateways.Teleport
             }
 
             SpawnPointGatewaysPlugin.Log?.LogInfo(
-                $"[SPG] Teleport: ({dest.x:F1}, {dest.y:F1}, {dest.z:F1}); {needed} Resin consumed.");
+                costEnabled && needed > 0
+                    ? $"[SPG] Teleport: ({dest.x:F1}, {dest.y:F1}, {dest.z:F1}); {needed} {costPrefab} consumed."
+                    : $"[SPG] Teleport: ({dest.x:F1}, {dest.y:F1}, {dest.z:F1}); cost disabled.");
 
             player.TeleportTo(dest, player.transform.rotation, distantTeleport: true);
 

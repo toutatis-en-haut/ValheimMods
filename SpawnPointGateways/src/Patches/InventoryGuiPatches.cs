@@ -40,15 +40,20 @@ namespace SpawnPointGateways.Patches
             var inv = player.GetInventory();
             if (inv == null) return;
 
-            int needed = Mathf.Max(0, GatewayConfig.ResinCost.Value);
-            int have = ResinHelper.Count(inv);
-            if (have < needed)
+            bool costEnabled = GatewayConfig.CostEnabled.Value;
+            string costPrefab = GatewayConfig.CostItem.Value;
+            int needed = costEnabled ? Mathf.Max(0, GatewayConfig.CostAmount.Value) : 0;
+            int have = costEnabled ? CostItemHelper.Count(inv, costPrefab) : 0;
+
+            if (costEnabled && have < needed)
             {
-                SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Charm activated but only {have}/{needed} Resin available.");
+                string itemDisplay = CostItemHelper.ResolveDisplayName(costPrefab);
+                SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Charm activated but only {have}/{needed} {costPrefab} available.");
                 var template = Localization.instance != null
-                    ? Localization.instance.Localize("$bifrost_charm_msg_no_resin")
-                    : "Not enough resin ({0} needed).";
-                player.Message(MessageHud.MessageType.Center, template.Replace("{0}", needed.ToString()));
+                    ? Localization.instance.Localize("$bifrost_charm_msg_no_cost")
+                    : "You need {0} {1} to light the charm.";
+                player.Message(MessageHud.MessageType.Center,
+                    template.Replace("{0}", needed.ToString()).Replace("{1}", itemDisplay));
                 return;
             }
 
@@ -57,7 +62,10 @@ namespace SpawnPointGateways.Patches
             SpawnPointReconciler.Run(player);
 
             GatewayState.ArmForDestination();
-            SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Charm armed (resin check passed: {have}/{needed}). State -> AwaitingDestination.");
+            SpawnPointGatewaysPlugin.Log?.LogInfo(
+                costEnabled
+                    ? $"[SPG] Charm armed (cost check passed: {have}/{needed} {costPrefab}). State -> AwaitingDestination."
+                    : "[SPG] Charm armed (cost disabled). State -> AwaitingDestination.");
             player.Message(MessageHud.MessageType.Center, "$bifrost_charm_msg_channel");
 
             if (InventoryGui.instance != null)
