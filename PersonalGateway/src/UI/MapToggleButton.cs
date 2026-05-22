@@ -10,10 +10,10 @@ namespace PersonalGateway.UI
     internal static class MapToggleButton
     {
         private static GameObject _go;
+        private static Image _backgroundImage;
         private static readonly List<Component> _labelTargets = new List<Component>();
         private static readonly List<PropertyInfo> _labelProperties = new List<PropertyInfo>();
-        private static GameObject _sourceButton;
-        private static bool _sourceMissingLogged;
+        private static bool _anchorMissingLogged;
 
         public static void Tick()
         {
@@ -32,11 +32,9 @@ namespace PersonalGateway.UI
             }
 
             if (!EnsureCreated(minimap)) return;
-            if (_go != null)
-            {
-                _go.SetActive(true);
-                ApplyCurrentLabel();
-            }
+            _go.SetActive(true);
+            ApplyCurrentLabel();
+            UpdatePosition(minimap);
         }
 
         private static void Disable()
@@ -48,105 +46,129 @@ namespace PersonalGateway.UI
         {
             if (_go != null && _go.transform.parent != null) return true;
 
-            _sourceButton = FindToggleSourceButton(minimap);
-            if (_sourceButton == null)
+            GameObject anchor = FindCartographyAnchor(minimap);
+            if (anchor == null)
             {
-                if (!_sourceMissingLogged)
+                if (!_anchorMissingLogged)
                 {
-                    PersonalGatewayPlugin.Log?.LogInfo("MapToggleButton: source toggle button not found; range toggle stays config-only.");
-                    _sourceMissingLogged = true;
+                    PersonalGatewayPlugin.Log?.LogInfo("MapToggleButton: no cartography/public-position anchor found; toggle disabled.");
+                    _anchorMissingLogged = true;
                 }
                 return false;
             }
 
-            var sourceRt = (RectTransform)_sourceButton.transform;
-            var parent = sourceRt.parent;
-
-            // Make sure the source's layout is settled before we read its height.
-            if (parent is RectTransform parentRt)
-            {
-                UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(parentRt);
-            }
-
-            var clone = UnityEngine.Object.Instantiate(_sourceButton, parent);
-            clone.name = "BifrostRangeToggle";
-            _go = clone;
-
-            // Earlier versions assumed the source's parent owned a VerticalLayoutGroup
-            // that would re-flow children after SetAsFirstSibling. Current Valheim doesn't
-            // — the toggles are positioned by anchored coordinates, so a cloned child
-            // lands on top of its source. Position the clone manually instead, and opt it
-            // out of any layout group that might still be present.
-            var cloneRt = (RectTransform)clone.transform;
-            cloneRt.anchorMin = sourceRt.anchorMin;
-            cloneRt.anchorMax = sourceRt.anchorMax;
-            cloneRt.pivot = sourceRt.pivot;
-            cloneRt.sizeDelta = sourceRt.sizeDelta;
-
-            const float spacingPixels = 6f;
-            float stackHeight = sourceRt.rect.height > 0f ? sourceRt.rect.height : sourceRt.sizeDelta.y;
-            if (stackHeight <= 0f) stackHeight = 48f;
-            cloneRt.anchoredPosition = sourceRt.anchoredPosition + new Vector2(0f, stackHeight + spacingPixels);
-
-            var layoutElement = clone.GetComponent<UnityEngine.UI.LayoutElement>()
-                                ?? clone.AddComponent<UnityEngine.UI.LayoutElement>();
-            layoutElement.ignoreLayout = true;
-
-            clone.transform.SetAsLastSibling();
-
-            // The cloned toggle inherits its source's ToggleGroup membership, which makes
-            // it mutually exclusive with "Visible to other players". Cut that tie so our
-            // toggle is independent.
-            var inheritedToggle = clone.GetComponent<Toggle>();
-            if (inheritedToggle != null) inheritedToggle.group = null;
-
-            StripLocalizeComponents(clone);
-            CaptureLabelTargets(clone);
-            WireInteraction(clone);
-            ApplyCurrentLabel();
-            return true;
+            BuildFromScratch(anchor);
+            return _go != null;
         }
 
-        private static void WireInteraction(GameObject clone)
+        private static void BuildFromScratch(GameObject anchor)
         {
-            var btn = clone.GetComponent<Button>();
-            if (btn != null)
+            var anchorRt = (RectTransform)anchor.transform;
+            var parent = anchorRt.parent;
+            if (parent == null) return;
+
+            var go = new GameObject(
+                "BifrostRangeToggle",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image),
+                typeof(Button),
+                typeof(LayoutElement));
+
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(parent, false);
+
+            var layout = go.GetComponent<LayoutElement>();
+            layout.ignoreLayout = true;
+
+            rt.anchorMin = anchorRt.anchorMin;
+            rt.anchorMax = anchorRt.anchorMax;
+            rt.pivot = anchorRt.pivot;
+            rt.sizeDelta = anchorRt.sizeDelta;
+            rt.localScale = anchorRt.localScale;
+
+            _backgroundImage = go.GetComponent<Image>();
+            _backgroundImage.sprite = RoundedRectBuilder.CreateRoundedRectSprite(64, 12);
+            _backgroundImage.type = Image.Type.Sliced;
+            _backgroundImage.color = new Color(0.08f, 0.06f, 0.04f, 0.85f);
+            _backgroundImage.raycastTarget = true;
+
+            var btn = go.GetComponent<Button>();
+            btn.targetGraphic = _backgroundImage;
+            btn.transition = Selectable.Transition.ColorTint;
+            var colors = btn.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1.2f, 1.15f, 1f, 1f);
+            colors.pressedColor = new Color(0.8f, 0.75f, 0.65f, 1f);
+            colors.selectedColor = Color.white;
+            btn.colors = colors;
+            btn.onClick.AddListener(OnClicked);
+
+            AttachLabel(go, anchor);
+
+            _go = go;
+        }
+
+        private static void AttachLabel(GameObject parent, GameObject anchor)
+        {
+            GameObject labelTemplate = FindAnchorTextGameObject(anchor);
+
+            GameObject labelGo;
+            if (labelTemplate != null)
             {
-                btn.onClick.RemoveAllListeners();
-                btn.onClick.AddListener(OnClickedToggleConfig);
-            }
-            var toggle = clone.GetComponent<Toggle>();
-            if (toggle != null)
-            {
-                toggle.onValueChanged.RemoveAllListeners();
-                toggle.SetIsOnWithoutNotify(GatewayConfig.ShowRangeCircle.Value);
-                toggle.onValueChanged.AddListener(newValue =>
+                labelGo = UnityEngine.Object.Instantiate(labelTemplate, parent.transform);
+                labelGo.name = "Label";
+
+                foreach (var c in labelGo.GetComponentsInChildren<Component>(includeInactive: true))
                 {
-                    GatewayConfig.ShowRangeCircle.Value = newValue;
-                    ApplyCurrentLabel();
-                });
-            }
-        }
-
-        private static void OnClickedToggleConfig()
-        {
-            GatewayConfig.ShowRangeCircle.Value = !GatewayConfig.ShowRangeCircle.Value;
-            var toggle = _go != null ? _go.GetComponent<Toggle>() : null;
-            if (toggle != null) toggle.SetIsOnWithoutNotify(GatewayConfig.ShowRangeCircle.Value);
-            ApplyCurrentLabel();
-        }
-
-        private static void StripLocalizeComponents(GameObject root)
-        {
-            var comps = root.GetComponentsInChildren<Component>(includeInactive: true);
-            foreach (var c in comps)
-            {
-                if (c == null) continue;
-                if (c.GetType().Name == "Localize")
-                {
-                    UnityEngine.Object.DestroyImmediate(c);
+                    if (c == null) continue;
+                    if (c.GetType().Name == "Localize")
+                    {
+                        UnityEngine.Object.DestroyImmediate(c);
+                    }
                 }
             }
+            else
+            {
+                labelGo = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+                labelGo.transform.SetParent(parent.transform, false);
+                var t = labelGo.GetComponent<Text>();
+                t.color = new Color(1f, 0.85f, 0.4f, 1f);
+                t.alignment = TextAnchor.MiddleCenter;
+                t.fontSize = 22;
+            }
+
+            var labelRt = (RectTransform)labelGo.transform;
+            labelRt.anchorMin = Vector2.zero;
+            labelRt.anchorMax = Vector2.one;
+            labelRt.offsetMin = new Vector2(14f, 0f);
+            labelRt.offsetMax = new Vector2(-14f, 0f);
+            labelRt.localScale = Vector3.one;
+
+            foreach (var g in labelGo.GetComponentsInChildren<Graphic>(includeInactive: true))
+            {
+                if (g == _backgroundImage) continue;
+                g.raycastTarget = false;
+            }
+
+            CaptureLabelTargets(labelGo);
+        }
+
+        private static void UpdatePosition(Minimap minimap)
+        {
+            if (_go == null) return;
+            var anchor = FindCartographyAnchor(minimap);
+            if (anchor == null) return;
+            var anchorRt = (RectTransform)anchor.transform;
+            var rt = (RectTransform)_go.transform;
+            float vOffset = GatewayConfig.RangeToggleVerticalOffset.Value;
+            rt.anchoredPosition = anchorRt.anchoredPosition + new Vector2(0f, anchorRt.sizeDelta.y + vOffset);
+        }
+
+        private static void OnClicked()
+        {
+            GatewayConfig.ShowRangeCircle.Value = !GatewayConfig.ShowRangeCircle.Value;
+            ApplyCurrentLabel();
         }
 
         private static void CaptureLabelTargets(GameObject root)
@@ -197,21 +219,17 @@ namespace PersonalGateway.UI
             }
         }
 
-        private static GameObject FindToggleSourceButton(Minimap minimap)
+        private static GameObject FindCartographyAnchor(Minimap minimap)
         {
-            // Prefer the Cartography Table toggle (hex radio style) per the design intent.
+            if (minimap == null) return null;
+
             string[] cartographyFields = { "m_sharedMapToggle", "m_cartographyToggle", "m_sharedToggle" };
             foreach (var name in cartographyFields)
             {
                 var go = TryReadFieldAsGameObject(minimap, name);
-                if (go != null)
-                {
-                    PersonalGatewayPlugin.Log?.LogInfo($"MapToggleButton: source = Minimap.{name} (cartography toggle).");
-                    return go;
-                }
+                if (go != null) return go;
             }
 
-            // Resolve the public-position toggle and scan its siblings for a cartography-labelled button.
             GameObject publicPos = null;
             foreach (var name in new[] { "m_publicPosition", "m_publicPositionToggle", "m_publicCheck" })
             {
@@ -226,60 +244,36 @@ namespace PersonalGateway.UI
                 {
                     var child = parent.GetChild(i);
                     if (child.gameObject == publicPos) continue;
+                    if (child.gameObject == _go) continue;
                     var label = FindAnyTextString(child.gameObject);
                     if (label == null) continue;
                     if (label.IndexOf("cartograph", System.StringComparison.OrdinalIgnoreCase) >= 0
                         || label.IndexOf("table", System.StringComparison.OrdinalIgnoreCase) >= 0
                         || label.IndexOf("shared", System.StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        PersonalGatewayPlugin.Log?.LogInfo($"MapToggleButton: source = sibling '{child.name}' (label: '{label}').");
                         return child.gameObject;
                     }
                 }
             }
 
-            if (minimap.m_largeRoot != null)
-            {
-                // In current Valheim the Cartography Table widget is a Toggle, not a
-                // Button (the hex radio indicator), so we have to check both component
-                // types or we silently fall back to the public-position toggle.
-                var candidates = new List<GameObject>();
-                foreach (var b in minimap.m_largeRoot.GetComponentsInChildren<Button>(includeInactive: true))
-                {
-                    if (b != null) candidates.Add(b.gameObject);
-                }
-                foreach (var t in minimap.m_largeRoot.GetComponentsInChildren<Toggle>(includeInactive: true))
-                {
-                    if (t != null) candidates.Add(t.gameObject);
-                }
-                foreach (var go in candidates)
-                {
-                    var label = FindAnyTextString(go);
-                    if (label == null) continue;
-                    if (label.IndexOf("cartograph", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        PersonalGatewayPlugin.Log?.LogInfo($"MapToggleButton: source = deep-scan '{go.name}' (cartography by label).");
-                        return go;
-                    }
-                }
-            }
-
-            if (publicPos != null)
-            {
-                PersonalGatewayPlugin.Log?.LogInfo("MapToggleButton: cartography toggle not located; falling back to public-position toggle as source.");
-                return publicPos;
-            }
-
-            return null;
+            return publicPos;
         }
 
-        private static GameObject TryReadFieldAsGameObject(Minimap minimap, string fieldName)
+        private static GameObject FindAnchorTextGameObject(GameObject anchor)
         {
-            var field = AccessTools.Field(typeof(Minimap), fieldName);
-            if (field == null) return null;
-            var value = field.GetValue(minimap);
-            if (value is GameObject go) return go;
-            if (value is Component c && c != null) return c.gameObject;
+            if (anchor == null) return null;
+            var uiText = anchor.GetComponentInChildren<Text>(includeInactive: true);
+            if (uiText != null) return uiText.gameObject;
+            var comps = anchor.GetComponentsInChildren<Component>(includeInactive: true);
+            foreach (var c in comps)
+            {
+                if (c == null) continue;
+                var t = c.GetType();
+                if (t.Namespace != null && t.Namespace.StartsWith("TMPro"))
+                {
+                    return c.gameObject;
+                }
+            }
             return null;
         }
 
@@ -301,6 +295,16 @@ namespace PersonalGateway.UI
                     }
                 }
             }
+            return null;
+        }
+
+        private static GameObject TryReadFieldAsGameObject(Minimap minimap, string fieldName)
+        {
+            var field = AccessTools.Field(typeof(Minimap), fieldName);
+            if (field == null) return null;
+            var value = field.GetValue(minimap);
+            if (value is GameObject go) return go;
+            if (value is Component c && c != null) return c.gameObject;
             return null;
         }
     }

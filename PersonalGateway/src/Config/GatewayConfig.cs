@@ -23,6 +23,7 @@ namespace PersonalGateway.Config
         public static ConfigEntry<bool> ShowRangeCircle;
         public static ConfigEntry<Color> RangeCircleColor;
         public static ConfigEntry<float> RangeCircleThickness;
+        public static ConfigEntry<float> RangeToggleVerticalOffset;
         public static ConfigEntry<bool> RequireDoubleClick;
 
         public static ConfigEntry<float> XpCommon;
@@ -70,7 +71,8 @@ namespace PersonalGateway.Config
 
             ShowRangeCircle = cfg.Bind("UI", "ShowRangeCircle", true, "Show the light-blue range circle on the large map.");
             RangeCircleColor = cfg.Bind("UI", "RangeCircleColor", new Color(0.35f, 0.75f, 1.0f, 0.85f), "Color of the range circle on the large map.");
-            RangeCircleThickness = cfg.Bind("UI", "RangeCircleThickness", 0.12f, "Thickness of the range circle as a fraction of its radius (0.01 = a thin line, 0.50 = a solid disc). Clamped to [0.01, 0.50]. Changes apply the next time the map is opened.");
+            RangeCircleThickness = cfg.Bind("UI", "RangeCircleThickness", 0.02f, "Thickness of the range circle as a fraction of its radius (0.01 = a thin line, 0.50 = a solid disc). Clamped to [0.01, 0.50]. Changes apply the next time the map is opened.");
+            RangeToggleVerticalOffset = cfg.Bind("UI", "RangeToggleVerticalOffset", 10f, "Extra pixels of vertical space between the Bifrost Totem Range toggle and the Cartography Table toggle. Positive moves the Bifrost toggle further up.");
 
             XpCommon = cfg.Bind("XP", "Common", 1f, "Bifröst XP awarded for sacrificing a common trophy.");
             XpUncommon = cfg.Bind("XP", "Uncommon", 3f, "Bifröst XP awarded for sacrificing an uncommon trophy.");
