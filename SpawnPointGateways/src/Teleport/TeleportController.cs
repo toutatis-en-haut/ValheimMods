@@ -179,7 +179,15 @@ namespace SpawnPointGateways.Teleport
 
             ResinHelper.Remove(inv, needed);
 
-            dest.y = ResolveSafeY(dest);
+            // Trust the stored Y — it came from PlayerProfile.SetCustomSpawnPoint, which is
+            // Valheim's own canonical respawn position for the bed (accounts for floors and
+            // elevation). Re-resolving via terrain height would drop us under built floors.
+            // Only fall back to ResolveSafeY if the stored Y is clearly bogus.
+            if (float.IsNaN(dest.y) || float.IsInfinity(dest.y) || dest.y < -1000f)
+            {
+                SpawnPointGatewaysPlugin.Log?.LogInfo($"[SPG] Stored Y ({dest.y}) looks invalid; resolving from terrain.");
+                dest.y = ResolveSafeY(dest);
+            }
 
             SpawnPointGatewaysPlugin.Log?.LogInfo(
                 $"[SPG] Teleport: ({dest.x:F1}, {dest.y:F1}, {dest.z:F1}); {needed} Resin consumed.");
