@@ -28,6 +28,7 @@ namespace PersonalGateway.UI
                 { "bifrost_msg_unknown", "The stars cannot find a place you have not seen." },
                 { "bifrost_msg_teleported", "The Bifröst carries you. {0} consumed." },
                 { "bifrost_msg_trophy_lost", "The chosen sacrifice is gone. The Bifröst dims." },
+                { "bifrost_toggle_label", "Bifröst Totem Range" },
                 { "bifrost_toggle_on", "Bifröst Totem Range: ON" },
                 { "bifrost_toggle_off", "Bifröst Totem Range: OFF" }
             });

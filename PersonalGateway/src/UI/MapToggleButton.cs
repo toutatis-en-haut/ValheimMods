@@ -3,25 +3,30 @@ using System.Reflection;
 using HarmonyLib;
 using PersonalGateway.Config;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace PersonalGateway.UI
 {
     /// <summary>
-    /// Adds a "Bifrost Totem Range: ON/OFF" toggle to Valheim's large map UI by
-    /// cloning the Cartography Table toggle for visual fidelity (matching frame,
-    /// font, icon style) and then surgically destroying every Valheim behavioural
-    /// component on the clone (Toggle, ToggleGroup, EventTrigger, Localize, any
-    /// non-Button Selectable). A fresh Button is wired to flip our config.
+    /// "Bifröst Totem Range" map toggle. Built from scratch so we don't inherit
+    /// any Valheim behaviour from a cloned button:
+    ///   - Procedural rounded-rect background (semi-opaque)
+    ///   - Procedural radio-button icon (empty when off, filled when on)
+    ///   - Cloned TMP text element from any vanilla toggle for font/style parity
+    /// Position is anchored above the Cartography Table toggle (or, if absent,
+    /// the public-position toggle) with a config-tunable vertical offset.
     /// </summary>
     internal static class MapToggleButton
     {
         private static GameObject _go;
+        private static Image _backgroundImage;
+        private static Image _radioIcon;
+        private static Sprite _radioOnSprite;
+        private static Sprite _radioOffSprite;
         private static readonly List<Component> _labelTargets = new List<Component>();
         private static readonly List<PropertyInfo> _labelProperties = new List<PropertyInfo>();
-        private static bool _anchorMissingLogged;
         private static GameObject _cachedAnchor;
+        private static bool _anchorMissingLogged;
 
         public static void Tick()
         {
@@ -42,6 +47,7 @@ namespace PersonalGateway.UI
             if (!EnsureCreated(minimap)) return;
             _go.SetActive(true);
             ApplyCurrentLabel();
+            ApplyRadioState();
             UpdatePosition(minimap);
         }
 
@@ -54,108 +60,136 @@ namespace PersonalGateway.UI
         {
             if (_go != null && _go.transform.parent != null) return true;
 
-            GameObject source = FindCartographyAnchor(minimap);
-            if (source == null)
+            GameObject anchor = FindCartographyAnchor(minimap);
+            if (anchor == null)
             {
                 if (!_anchorMissingLogged)
                 {
-                    PersonalGatewayPlugin.Log?.LogInfo("MapToggleButton: cartography/public-position anchor not found; toggle disabled.");
+                    PersonalGatewayPlugin.Log?.LogInfo("MapToggleButton: no anchor toggle found; range toggle disabled.");
                     _anchorMissingLogged = true;
                 }
                 return false;
             }
 
-            BuildFromClone(source);
+            BuildFromScratch(anchor);
             return _go != null;
         }
 
-        private static void BuildFromClone(GameObject source)
+        private static void BuildFromScratch(GameObject anchor)
         {
-            var sourceRt = (RectTransform)source.transform;
-            var parent = sourceRt.parent;
+            var anchorRt = (RectTransform)anchor.transform;
+            var parent = anchorRt.parent;
             if (parent == null) return;
 
-            // Clone the visuals wholesale. This preserves the rounded background,
-            // hex icon, TMP text styling, and child hierarchy used by Valheim.
-            var clone = UnityEngine.Object.Instantiate(source, parent);
-            clone.name = "BifrostRangeToggle";
+            var go = new GameObject(
+                "BifrostRangeToggle",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image),
+                typeof(Button),
+                typeof(LayoutElement));
 
-            StripBehavioralComponents(clone);
-            StripLocalizeComponents(clone);
+            var rt = (RectTransform)go.transform;
+            rt.SetParent(parent, false);
 
-            // Take the clone out of the parent's VerticalLayoutGroup so we can
-            // position it manually with a config-tunable offset.
-            var layout = clone.GetComponent<LayoutElement>() ?? clone.AddComponent<LayoutElement>();
-            layout.ignoreLayout = true;
+            go.GetComponent<LayoutElement>().ignoreLayout = true;
 
-            // Make the root act as a single button surface that catches clicks
-            // (prevents click-through to the cartography toggle behind us).
-            var rootImage = clone.GetComponent<Image>();
-            if (rootImage != null)
-            {
-                rootImage.raycastTarget = true;
-            }
-            foreach (var img in clone.GetComponentsInChildren<Image>(includeInactive: true))
-            {
-                if (img == rootImage) continue;
-                img.raycastTarget = false;
-            }
-            foreach (var graphic in clone.GetComponentsInChildren<Graphic>(includeInactive: true))
-            {
-                if (graphic is Image) continue;
-                graphic.raycastTarget = false;
-            }
+            rt.anchorMin = anchorRt.anchorMin;
+            rt.anchorMax = anchorRt.anchorMax;
+            rt.pivot = anchorRt.pivot;
+            rt.sizeDelta = anchorRt.sizeDelta;
+            rt.localScale = anchorRt.localScale;
 
-            var btn = clone.GetComponent<Button>();
-            if (btn == null) btn = clone.AddComponent<Button>();
-            if (rootImage != null) btn.targetGraphic = rootImage;
-            btn.onClick.RemoveAllListeners();
+            _backgroundImage = go.GetComponent<Image>();
+            _backgroundImage.sprite = CreateRoundedRectSprite(64, 12);
+            _backgroundImage.type = Image.Type.Sliced;
+            _backgroundImage.color = new Color(0.10f, 0.08f, 0.05f, 0.85f);
+            _backgroundImage.raycastTarget = true;
+
+            var btn = go.GetComponent<Button>();
+            btn.targetGraphic = _backgroundImage;
+            btn.transition = Selectable.Transition.ColorTint;
+            var colors = btn.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = new Color(1.15f, 1.10f, 1.0f, 1f);
+            colors.pressedColor = new Color(0.8f, 0.75f, 0.65f, 1f);
+            colors.selectedColor = Color.white;
+            btn.colors = colors;
             btn.onClick.AddListener(OnClicked);
 
-            CaptureLabelTargets(clone);
+            BuildLabel(go, anchor);
+            BuildRadioIcon(go);
 
-            _go = clone;
-            ApplyCurrentLabel();
+            _go = go;
         }
 
-        /// <summary>
-        /// Destroy every behavioural component that could carry Valheim's
-        /// cartography logic across to the clone. Everything visual (Image,
-        /// TMP text, RectTransform, Canvas-related) is preserved.
-        /// </summary>
-        private static void StripBehavioralComponents(GameObject clone)
+        private static void BuildLabel(GameObject parent, GameObject anchor)
         {
-            foreach (var t in clone.GetComponentsInChildren<Toggle>(includeInactive: true))
-            {
-                if (t != null) UnityEngine.Object.DestroyImmediate(t);
-            }
-            foreach (var tg in clone.GetComponentsInChildren<ToggleGroup>(includeInactive: true))
-            {
-                if (tg != null) UnityEngine.Object.DestroyImmediate(tg);
-            }
-            foreach (var ev in clone.GetComponentsInChildren<EventTrigger>(includeInactive: true))
-            {
-                if (ev != null) UnityEngine.Object.DestroyImmediate(ev);
-            }
-            // Strip any Selectable other than the Button we will add (or already exists).
-            foreach (var sel in clone.GetComponentsInChildren<Selectable>(includeInactive: true))
-            {
-                if (sel == null) continue;
-                if (sel is Button) continue;
-                UnityEngine.Object.DestroyImmediate(sel);
-            }
-        }
+            GameObject textTemplate = FindAnchorTextGameObject(anchor);
 
-        private static void StripLocalizeComponents(GameObject root)
-        {
-            foreach (var c in root.GetComponentsInChildren<Component>(includeInactive: true))
+            GameObject labelGo;
+            if (textTemplate != null)
             {
-                if (c == null) continue;
-                if (c.GetType().Name == "Localize")
+                labelGo = UnityEngine.Object.Instantiate(textTemplate, parent.transform);
+                labelGo.name = "Label";
+
+                foreach (var c in labelGo.GetComponentsInChildren<Component>(includeInactive: true))
                 {
-                    UnityEngine.Object.DestroyImmediate(c);
+                    if (c == null) continue;
+                    if (c.GetType().Name == "Localize")
+                    {
+                        UnityEngine.Object.DestroyImmediate(c);
+                    }
                 }
             }
+            else
+            {
+                labelGo = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+                labelGo.transform.SetParent(parent.transform, false);
+                var t = labelGo.GetComponent<Text>();
+                t.color = new Color(1f, 0.85f, 0.4f, 1f);
+                t.alignment = TextAnchor.MiddleRight;
+                t.fontSize = 22;
+            }
+
+            // Stretch across the toggle, leaving room on the right for the radio icon.
+            var labelRt = (RectTransform)labelGo.transform;
+            labelRt.anchorMin = Vector2.zero;
+            labelRt.anchorMax = Vector2.one;
+            labelRt.offsetMin = new Vector2(14f, 0f);
+            labelRt.offsetMax = new Vector2(-50f, 0f);
+            labelRt.localScale = Vector3.one;
+
+            foreach (var g in labelGo.GetComponentsInChildren<Graphic>(includeInactive: true))
+            {
+                g.raycastTarget = false;
+            }
+
+            CaptureLabelTargets(labelGo);
+        }
+
+        private static void BuildRadioIcon(GameObject parent)
+        {
+            var iconGo = new GameObject(
+                "RadioIcon",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image));
+            iconGo.transform.SetParent(parent.transform, false);
+
+            var iconRt = (RectTransform)iconGo.transform;
+            iconRt.anchorMin = new Vector2(1f, 0.5f);
+            iconRt.anchorMax = new Vector2(1f, 0.5f);
+            iconRt.pivot = new Vector2(1f, 0.5f);
+            iconRt.sizeDelta = new Vector2(28f, 28f);
+            iconRt.anchoredPosition = new Vector2(-12f, 0f);
+            iconRt.localScale = Vector3.one;
+
+            _radioIcon = iconGo.GetComponent<Image>();
+            _radioIcon.raycastTarget = false;
+            _radioOffSprite = CreateRadioSprite(64, filled: false);
+            _radioOnSprite = CreateRadioSprite(64, filled: true);
+            ApplyRadioState();
         }
 
         private static void UpdatePosition(Minimap minimap)
@@ -172,8 +206,6 @@ namespace PersonalGateway.UI
             rt.pivot = anchorRt.pivot;
             rt.sizeDelta = anchorRt.sizeDelta;
             rt.localScale = anchorRt.localScale;
-            // rect.size is the resolved rendered height of the anchor (sizeDelta.y is
-            // often 0 when the rect is anchor-stretched, which collapsed the offset).
             float anchorHeight = anchorRt.rect.size.y;
             rt.anchoredPosition = anchorRt.anchoredPosition + new Vector2(0f, anchorHeight + vOffset);
         }
@@ -182,6 +214,13 @@ namespace PersonalGateway.UI
         {
             GatewayConfig.ShowRangeCircle.Value = !GatewayConfig.ShowRangeCircle.Value;
             ApplyCurrentLabel();
+            ApplyRadioState();
+        }
+
+        private static void ApplyRadioState()
+        {
+            if (_radioIcon == null) return;
+            _radioIcon.sprite = GatewayConfig.ShowRangeCircle.Value ? _radioOnSprite : _radioOffSprite;
         }
 
         private static void CaptureLabelTargets(GameObject root)
@@ -216,8 +255,9 @@ namespace PersonalGateway.UI
 
         private static void ApplyCurrentLabel()
         {
-            string token = GatewayConfig.ShowRangeCircle.Value ? "$bifrost_toggle_on" : "$bifrost_toggle_off";
-            string text = Localization.instance != null ? Localization.instance.Localize(token) : token;
+            string text = Localization.instance != null
+                ? Localization.instance.Localize("$bifrost_toggle_label")
+                : "$bifrost_toggle_label";
             for (int i = 0; i < _labelTargets.Count; i++)
             {
                 var target = _labelTargets[i];
@@ -230,6 +270,91 @@ namespace PersonalGateway.UI
                 }
             }
         }
+
+        // ---------- Sprite generators ----------
+
+        private static Sprite CreateRoundedRectSprite(int size, int radius)
+        {
+            if (size < radius * 2) size = radius * 2;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+
+            var pixels = new Color[size * size];
+            float r = radius;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float coverage = 1f;
+                    int cx = -1, cy = -1;
+                    if (x < radius && y < radius) { cx = radius; cy = radius; }
+                    else if (x >= size - radius && y < radius) { cx = size - radius - 1; cy = radius; }
+                    else if (x < radius && y >= size - radius) { cx = radius; cy = size - radius - 1; }
+                    else if (x >= size - radius && y >= size - radius) { cx = size - radius - 1; cy = size - radius - 1; }
+                    if (cx >= 0)
+                    {
+                        float dx = x + 0.5f - cx;
+                        float dy = y + 0.5f - cy;
+                        float d = Mathf.Sqrt(dx * dx + dy * dy);
+                        coverage = Mathf.Clamp01(r - d + 0.5f);
+                    }
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, coverage);
+                }
+            }
+            tex.SetPixels(pixels);
+            tex.Apply();
+            var border = new Vector4(radius, radius, radius, radius);
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, border);
+        }
+
+        private static Sprite CreateRadioSprite(int size, bool filled)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+            var pixels = new Color[size * size];
+            var clear = new Color(0f, 0f, 0f, 0f);
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = clear;
+
+            float cx = size * 0.5f;
+            float cy = size * 0.5f;
+            float outer = size * 0.45f;
+            float ringInner = outer * 0.78f;
+            float fillRadius = outer * 0.55f;
+
+            var ringColor = new Color(1f, 0.85f, 0.35f, 1f);
+            var fillColor = new Color(1f, 0.85f, 0.35f, 1f);
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = x + 0.5f - cx;
+                    float dy = y + 0.5f - cy;
+                    float d = Mathf.Sqrt(dx * dx + dy * dy);
+                    if (d <= outer && d >= ringInner)
+                    {
+                        float edgeFade = Mathf.Min(d - ringInner, outer - d);
+                        pixels[y * size + x] = new Color(ringColor.r, ringColor.g, ringColor.b, Mathf.Clamp01(edgeFade));
+                    }
+                    else if (filled && d <= fillRadius)
+                    {
+                        float edgeFade = fillRadius - d;
+                        pixels[y * size + x] = new Color(fillColor.r, fillColor.g, fillColor.b, Mathf.Clamp01(edgeFade));
+                    }
+                }
+            }
+            tex.SetPixels(pixels);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
+        }
+
+        // ---------- Anchor / font donor lookup ----------
 
         private static GameObject FindCartographyAnchor(Minimap minimap)
         {
@@ -257,6 +382,7 @@ namespace PersonalGateway.UI
                 if (publicPos != null) break;
             }
 
+            // Try to find a cartography-labelled sibling of the public-position toggle.
             if (publicPos != null && publicPos.transform.parent != null)
             {
                 var parent = publicPos.transform.parent;
@@ -266,12 +392,27 @@ namespace PersonalGateway.UI
                     if (child.gameObject == publicPos) continue;
                     if (child.gameObject == _go) continue;
                     var label = FindAnyTextString(child.gameObject);
-                    if (label == null) continue;
-                    if (label.IndexOf("cartograph", System.StringComparison.OrdinalIgnoreCase) >= 0
-                        || label.IndexOf("table", System.StringComparison.OrdinalIgnoreCase) >= 0
-                        || label.IndexOf("shared", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    if (LabelLooksLikeCartography(label))
                     {
                         _cachedAnchor = child.gameObject;
+                        return _cachedAnchor;
+                    }
+                }
+            }
+
+            // Deeper scan: walk the whole large-map root looking for a cartography-labelled button.
+            if (minimap.m_largeRoot != null)
+            {
+                var buttons = minimap.m_largeRoot.GetComponentsInChildren<Selectable>(includeInactive: true);
+                foreach (var sel in buttons)
+                {
+                    if (sel == null) continue;
+                    if (sel.gameObject == publicPos) continue;
+                    if (sel.gameObject == _go) continue;
+                    var label = FindAnyTextString(sel.gameObject);
+                    if (LabelLooksLikeCartography(label))
+                    {
+                        _cachedAnchor = sel.gameObject;
                         return _cachedAnchor;
                     }
                 }
@@ -281,12 +422,36 @@ namespace PersonalGateway.UI
             return publicPos;
         }
 
+        private static bool LabelLooksLikeCartography(string label)
+        {
+            if (string.IsNullOrEmpty(label)) return false;
+            return label.IndexOf("cartograph", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || label.IndexOf("shared", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || label.IndexOf("$piece_cartograph", System.StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static GameObject FindAnchorTextGameObject(GameObject anchor)
+        {
+            if (anchor == null) return null;
+            var uiText = anchor.GetComponentInChildren<Text>(includeInactive: true);
+            if (uiText != null) return uiText.gameObject;
+            foreach (var c in anchor.GetComponentsInChildren<Component>(includeInactive: true))
+            {
+                if (c == null) continue;
+                var t = c.GetType();
+                if (t.Namespace != null && t.Namespace.StartsWith("TMPro"))
+                {
+                    return c.gameObject;
+                }
+            }
+            return null;
+        }
+
         private static string FindAnyTextString(GameObject root)
         {
             var uiText = root.GetComponentInChildren<Text>(includeInactive: true);
             if (uiText != null) return uiText.text;
-            var comps = root.GetComponentsInChildren<Component>(includeInactive: true);
-            foreach (var c in comps)
+            foreach (var c in root.GetComponentsInChildren<Component>(includeInactive: true))
             {
                 if (c == null) continue;
                 var t = c.GetType();
@@ -304,8 +469,6 @@ namespace PersonalGateway.UI
 
         private static GameObject TryReadFieldAsGameObject(Minimap minimap, string fieldName)
         {
-            // Use direct reflection rather than AccessTools.Field so that missing
-            // fields don't spam "Could not find field" warnings every time we look.
             var field = typeof(Minimap).GetField(
                 fieldName,
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
