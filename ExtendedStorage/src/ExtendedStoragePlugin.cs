@@ -1,6 +1,10 @@
 using BepInEx;
 using BepInEx.Logging;
+using ExtendedStorage.Config;
+using ExtendedStorage.Pieces;
+using ExtendedStorage.UI;
 using HarmonyLib;
+using Jotunn.Managers;
 using Jotunn.Utils;
 
 namespace ExtendedStorage
@@ -12,7 +16,7 @@ namespace ExtendedStorage
     {
         public const string ModGuid = "toutatis.extended_storage";
         public const string ModName = "Extended Storage";
-        public const string ModVersion = "0.1.0";
+        public const string ModVersion = "0.1.1";
 
         internal static ManualLogSource Log;
         internal static Harmony Harmony;
@@ -23,10 +27,30 @@ namespace ExtendedStorage
             Instance = this;
             Log = Logger;
 
+            CabinetConfig.Bind(Config);
+            LocalizationLoader.Register();
+            PrefabManager.OnVanillaPrefabsAvailable += OnVanillaPrefabsAvailable;
+
             Harmony = new Harmony(ModGuid);
             Harmony.PatchAll();
 
             Log.LogInfo($"{ModName} v{ModVersion} loaded.");
+        }
+
+        private void OnVanillaPrefabsAvailable()
+        {
+            try
+            {
+                WoodenCabinetPiece.Register();
+            }
+            catch (System.Exception ex)
+            {
+                Log.LogError($"Failed to register Wooden Cabinet: {ex}");
+            }
+            finally
+            {
+                PrefabManager.OnVanillaPrefabsAvailable -= OnVanillaPrefabsAvailable;
+            }
         }
 
         private void OnDestroy()
