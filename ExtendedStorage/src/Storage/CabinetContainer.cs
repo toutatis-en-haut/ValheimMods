@@ -19,16 +19,17 @@ namespace ExtendedStorage.Storage
             _nview = GetComponent<ZNetView>();
             _container = GetComponent<Container>();
 
-            if (_nview == null || !_nview.IsValid() || _container == null || _container.m_inventory == null)
+            if (_nview == null || !_nview.IsValid() || _container == null || _container.GetInventory() == null)
             {
                 return;
             }
 
             Storage = new CabinetStorage();
 
-            // Tab 0 reuses Container.m_inventory — vanilla loads it from the
-            // `items` ZDO key, so a removed mod degrades to a normal chest.
-            Storage.Tabs[0] = _container.m_inventory;
+            // Tab 0 reuses Container.GetInventory() — vanilla loads it from
+            // the `items` ZDO key, so a removed mod degrades to a normal
+            // chest. We hold the same Inventory reference, not a copy.
+            Storage.Tabs[0] = _container.GetInventory();
             for (int i = 1; i < CabinetStorage.TabCount; i++)
             {
                 Storage.Tabs[i] = new Inventory(

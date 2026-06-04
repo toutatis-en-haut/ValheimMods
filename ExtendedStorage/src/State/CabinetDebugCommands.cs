@@ -29,7 +29,7 @@ namespace ExtendedStorage.State
             CabinetContainer best = null;
             float bestDist = float.MaxValue;
 
-            foreach (var cab in Object.FindObjectsOfType<CabinetContainer>())
+            foreach (var cab in Object.FindObjectsByType<CabinetContainer>(FindObjectsSortMode.None))
             {
                 if (!cab.IsReady) continue;
                 var d = (cab.transform.position - origin).sqrMagnitude;
@@ -102,10 +102,25 @@ namespace ExtendedStorage.State
             var inv = cab.GetTab(tabIndex);
             if (inv == null) { Console.instance.Print("tab not ready"); return; }
 
-            var added = inv.AddItem(prefabName, amount, 1);
-            Console.instance.Print(added != null
+            var prefab = ObjectDB.instance?.GetItemPrefab(prefabName);
+            var itemDrop = prefab?.GetComponent<ItemDrop>();
+            if (itemDrop?.m_itemData?.m_shared == null)
+            {
+                Console.instance.Print($"Unknown item prefab: {prefabName}");
+                return;
+            }
+
+            var clone = new ItemDrop.ItemData
+            {
+                m_shared = itemDrop.m_itemData.m_shared,
+                m_dropPrefab = prefab,
+                m_stack = amount,
+                m_quality = 1
+            };
+            var success = inv.AddItem(clone);
+            Console.instance.Print(success
                 ? $"Added {amount}x {prefabName} to tab {tabIndex}."
-                : $"Could not add {prefabName} (full or unknown prefab).");
+                : $"Tab {tabIndex} could not accept {prefabName} (full?).");
         }
     }
 
