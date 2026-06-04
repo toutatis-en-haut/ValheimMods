@@ -95,7 +95,7 @@ namespace ExtendedStorage.Patches
 
             var grid = gui.m_container.GetComponentInChildren<InventoryGrid>(includeInactive: true);
             if (grid == null) return;
-            grid.UpdateInventory(inv, Player.m_localPlayer, "");
+            grid.UpdateInventory(inv, Player.m_localPlayer, (ItemDrop.ItemData)null);
         }
 
         private static void TeardownStrip()
