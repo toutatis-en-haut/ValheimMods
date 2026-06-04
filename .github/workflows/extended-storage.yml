@@ -172,3 +172,4 @@ jobs:
           files: ExtendedStorage/${{ env.RELEASE_FILE }}
           generate_release_notes: true
           fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref_name, '-dev') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
