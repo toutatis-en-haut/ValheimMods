@@ -42,7 +42,7 @@ namespace ExtendedStorage.Patches
         private static void Update_Postfix(InventoryGui __instance)
         {
             if (s_currentCabinet == null || s_strip == null) return;
-            if (!__instance.IsVisible()) return;
+            if (!InventoryGui.IsVisible()) return;
 
             for (int i = 0; i < CabinetStorage.TabCount; i++)
             {
@@ -56,27 +56,23 @@ namespace ExtendedStorage.Patches
 
         private static void BuildStrip(InventoryGui gui, CabinetContainer cab)
         {
-            var containerTransform = gui.m_container != null ? gui.m_container.transform : null;
-            if (containerTransform == null)
+            // In current Valheim, m_container is the chest panel's RectTransform;
+            // the InventoryGrid is a child component.
+            var panel = gui.m_container;
+            if (panel == null)
             {
-                ExtendedStoragePlugin.Log.LogWarning("InventoryGui.m_container has no transform; cannot place tab strip.");
+                ExtendedStoragePlugin.Log.LogWarning("InventoryGui.m_container is null; cannot place tab strip.");
                 return;
             }
 
-            // Strip lives one layer up so it can extend above the chest panel
-            // without being clipped by the grid's own mask.
-            var stripParent = containerTransform.parent;
-            if (stripParent == null) stripParent = containerTransform;
-
-            var panelRect = stripParent as RectTransform ?? containerTransform as RectTransform;
-            float stripWidth = panelRect != null ? panelRect.rect.width : 360f;
-
+            float stripWidth = panel.rect.width;
             var font = ResolveFont(gui);
 
-            s_strip = CabinetTabStrip.Build(stripParent, cab, stripWidth, font);
+            s_strip = CabinetTabStrip.Build(panel, cab, stripWidth, font);
             s_strip.OnTabActivated = idx => RebindGrid(gui, cab, idx);
 
-            // Position the strip just above the chest panel.
+            // Anchor to the top of the panel; pivot at bottom so the strip
+            // extends upward, above the panel header.
             var rect = s_strip.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(0f, 1f);
@@ -96,8 +92,10 @@ namespace ExtendedStorage.Patches
             cab.Storage.ActiveTab = idx;
             var inv = cab.GetTab(idx);
             if (inv == null || gui.m_container == null) return;
-            var player = Player.m_localPlayer;
-            gui.m_container.UpdateInventory(inv, player, "");
+
+            var grid = gui.m_container.GetComponentInChildren<InventoryGrid>(includeInactive: true);
+            if (grid == null) return;
+            grid.UpdateInventory(inv, Player.m_localPlayer, "");
         }
 
         private static void TeardownStrip()
