@@ -1,4 +1,5 @@
 using ExtendedStorage.Config;
+using ExtendedStorage.Storage;
 using Jotunn.Configs;
 using Jotunn.Entities;
 using Jotunn.Managers;
@@ -35,6 +36,10 @@ namespace ExtendedStorage.Pieces
             if (container != null)
             {
                 container.m_name = NameToken;
+                // Tab 0 maps to Container.m_inventory; resize the vanilla
+                // inventory to a 5x3 grid so all six tabs share dimensions.
+                container.m_width = CabinetStorage.TabWidth;
+                container.m_height = CabinetStorage.TabHeight;
             }
 
             var piece = prefab.GetComponent<Piece>();
@@ -42,6 +47,11 @@ namespace ExtendedStorage.Pieces
             {
                 piece.m_name = NameToken;
                 piece.m_description = DescriptionToken;
+            }
+
+            if (prefab.GetComponent<CabinetContainer>() == null)
+            {
+                prefab.AddComponent<CabinetContainer>();
             }
 
             var customPiece = new CustomPiece(prefab, fixReference: false, new PieceConfig

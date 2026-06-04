@@ -2,6 +2,7 @@ using BepInEx;
 using BepInEx.Logging;
 using ExtendedStorage.Config;
 using ExtendedStorage.Pieces;
+using ExtendedStorage.State;
 using ExtendedStorage.UI;
 using HarmonyLib;
 using Jotunn.Managers;
@@ -16,7 +17,7 @@ namespace ExtendedStorage
     {
         public const string ModGuid = "toutatis.extended_storage";
         public const string ModName = "Extended Storage";
-        public const string ModVersion = "0.1.1";
+        public const string ModVersion = "0.1.2";
 
         internal static ManualLogSource Log;
         internal static Harmony Harmony;
@@ -29,6 +30,7 @@ namespace ExtendedStorage
 
             CabinetConfig.Bind(Config);
             LocalizationLoader.Register();
+            CabinetDebugCommands.Register();
             PrefabManager.OnVanillaPrefabsAvailable += OnVanillaPrefabsAvailable;
 
             Harmony = new Harmony(ModGuid);
