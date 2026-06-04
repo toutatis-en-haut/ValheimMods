@@ -37,14 +37,7 @@ namespace ExtendedStorage.Patches
             TeardownStrip();
         }
 
-        [HarmonyPatch(nameof(InventoryGui.OnDestroy))]
-        [HarmonyPostfix]
-        private static void OnDestroy_Postfix()
-        {
-            TeardownStrip();
-        }
-
-        [HarmonyPatch(nameof(InventoryGui.Update))]
+        [HarmonyPatch("Update")]
         [HarmonyPostfix]
         private static void Update_Postfix(InventoryGui __instance)
         {
