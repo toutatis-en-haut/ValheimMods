@@ -111,17 +111,11 @@ namespace ExtendedStorage.UI
 
             var img = go.GetComponent<Image>();
             img.raycastTarget = false;
-            if (HammerTabStyle.SelectedHighlight != null)
-            {
-                img.sprite = HammerTabStyle.SelectedHighlight;
-                img.type = Image.Type.Sliced;
-                img.color = Color.white;
-            }
-            else
-            {
-                // Fallback: solid blue rectangle.
-                img.color = new Color(0.30f, 0.65f, 0.95f, 0.55f);
-            }
+            // Vibrant flat blue, no sprite — the sampled SelectedHighlight
+            // sprite in current Valheim came through near-white, which made
+            // the active tab look pale instead of blue.
+            img.sprite = null;
+            img.color = HammerTabStyle.ActiveHighlightColor;
             go.SetActive(false);
             return img;
         }

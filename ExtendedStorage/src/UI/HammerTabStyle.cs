@@ -6,15 +6,20 @@ namespace ExtendedStorage.UI
     internal static class HammerTabStyle
     {
         public static Sprite PanelBackground;
-        public static Sprite SelectedHighlight; // blue cyan sprite for active tab
         public static Font LabelFont;
         public static int FontSize = 16;
         public static Color LabelColor = new Color(0.96f, 0.92f, 0.82f, 1f); // warm cream
         public static Color CountColor = new Color(1f, 0.83f, 0.18f, 1f);    // yellow [N]
-        // Flat warm-brown body for inactive tabs / Q/E buttons. Matches the
-        // tone of the vanilla Hammer tabs without relying on a sampled
-        // sprite (which turned out to be near-white in current Valheim).
+
+        // Body colour for inactive tabs and Q/E buttons. Default is a flat
+        // warm brown; Resolve() will replace it with a darkened version of
+        // the chest panel's runtime tint if a theming mod is in play.
         public static Color TabBodyColor = new Color(0.18f, 0.12f, 0.07f, 0.92f);
+
+        // Vibrant blue used for the active tab's highlight overlay. Flat
+        // colour (no sprite) so it can't fall victim to whatever near-white
+        // sprite Hud's tab template happens to expose.
+        public static Color ActiveHighlightColor = new Color(0.28f, 0.62f, 0.92f, 1f);
 
         private static bool s_resolved;
 
@@ -23,12 +28,7 @@ namespace ExtendedStorage.UI
             if (s_resolved) return;
 
             var hud = Hud.instance;
-            if (hud == null) return;
-
-            // The wood-grain panel: lives behind the build-menu category bar.
-            // We sample any Image sprite under the piece selection window
-            // that looks like a stretched panel; fallback to the first.
-            if (hud.m_pieceSelectionWindow != null)
+            if (hud != null && hud.m_pieceSelectionWindow != null)
             {
                 var images = hud.m_pieceSelectionWindow.GetComponentsInChildren<Image>(includeInactive: true);
                 foreach (var img in images)
@@ -45,8 +45,8 @@ namespace ExtendedStorage.UI
                 }
             }
 
-            // Per-tab visuals — grab the first category tab as our template.
-            if (hud.m_pieceCategoryTabs != null && hud.m_pieceCategoryTabs.Length > 0)
+            // Borrow font + size from a piece category tab's label.
+            if (hud != null && hud.m_pieceCategoryTabs != null && hud.m_pieceCategoryTabs.Length > 0)
             {
                 var tab = hud.m_pieceCategoryTabs[0];
                 if (tab != null)
@@ -56,45 +56,53 @@ namespace ExtendedStorage.UI
                     {
                         LabelFont = label.font;
                         FontSize = label.fontSize > 0 ? label.fontSize : FontSize;
-                        // Keep our white-ish default; vanilla colour can vary.
                     }
+                }
+            }
 
-                    // We don't sample the tab body sprite — in current
-                    // Valheim it comes through near-white, which makes our
-                    // labels disappear against it. CabinetTab paints a flat
-                    // warm-brown body via TabBodyColor instead.
-                    //
-                    // The Selected highlight is a child image (typically
-                    // named "Selected") shown only on activation.
-                    var rootImg = tab.GetComponent<Image>();
-                    var images = tab.GetComponentsInChildren<Image>(includeInactive: true);
-                    foreach (var img in images)
+            // Theme-aware tab body: if the chest panel is currently tinted by
+            // a UI mod, derive our body colour from that tint so we blend in.
+            // If the panel reads as near-white (i.e. vanilla, no mod tinting),
+            // keep the flat-brown default.
+            var inv = InventoryGui.instance;
+            if (inv != null && inv.m_container != null)
+            {
+                var panelImg = FindFirstTintedImage(inv.m_container);
+                if (panelImg != null)
+                {
+                    var c = panelImg.color;
+                    if (!IsNearWhite(c))
                     {
-                        if (img == null || img.sprite == null) continue;
-                        if (img == rootImg) continue;
-                        var n = img.gameObject.name?.ToLowerInvariant();
-                        if (n != null && (n.Contains("select") || n.Contains("active") || n.Contains("highlight")))
-                        {
-                            SelectedHighlight = img.sprite;
-                            break;
-                        }
-                    }
-                    if (SelectedHighlight == null)
-                    {
-                        foreach (var img in images)
-                        {
-                            if (img == rootImg) continue;
-                            if (img.sprite != null && img.type == Image.Type.Sliced)
-                            {
-                                SelectedHighlight = img.sprite;
-                                break;
-                            }
-                        }
+                        TabBodyColor = new Color(
+                            c.r * 0.65f,
+                            c.g * 0.65f,
+                            c.b * 0.65f,
+                            Mathf.Clamp01(c.a + 0.10f));
                     }
                 }
             }
 
             s_resolved = true;
+        }
+
+        // Walks up the hierarchy from `start` and returns the first Image
+        // that has a sprite. Used to find the chest panel's background so we
+        // can derive a theme-matching tab body colour.
+        private static Image FindFirstTintedImage(Transform start)
+        {
+            var t = start;
+            while (t != null)
+            {
+                var img = t.GetComponent<Image>();
+                if (img != null && img.sprite != null) return img;
+                t = t.parent;
+            }
+            return null;
+        }
+
+        private static bool IsNearWhite(Color c)
+        {
+            return c.r > 0.92f && c.g > 0.92f && c.b > 0.92f;
         }
     }
 }
