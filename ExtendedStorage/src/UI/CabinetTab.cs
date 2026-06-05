@@ -82,7 +82,7 @@ namespace ExtendedStorage.UI
         {
             if (LabelText == null) return;
             var countColorHex = ColorUtility.ToHtmlStringRGBA(HammerTabStyle.CountColor);
-            LabelText.text = $"{_label} <color=#{countColorHex}>[{_fillCount}/{Storage.CabinetStorage.TabSlots}]</color>";
+            LabelText.text = $"{_label} <color=#{countColorHex}>[{_fillCount}]</color>";
         }
 
         private void RefreshActive()

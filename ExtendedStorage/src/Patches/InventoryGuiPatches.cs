@@ -10,6 +10,8 @@ namespace ExtendedStorage.Patches
     {
         private static CabinetTabStrip s_strip;
         private static CabinetContainer s_currentCabinet;
+        private static RectTransform s_droppedPanel;
+        private static Vector2 s_droppedPanelOriginalPos;
 
         internal static CabinetContainer CurrentCabinet => s_currentCabinet;
 
@@ -38,22 +40,8 @@ namespace ExtendedStorage.Patches
             TeardownStrip();
         }
 
-        [HarmonyPatch("Update")]
-        [HarmonyPostfix]
-        private static void Update_Postfix(InventoryGui __instance)
-        {
-            if (s_currentCabinet == null || s_strip == null) return;
-            if (!InventoryGui.IsVisible()) return;
-
-            for (int i = 0; i < CabinetStorage.TabCount; i++)
-            {
-                if (Input.GetKeyDown(KeyCode.Alpha1 + i))
-                {
-                    ActivateTab(__instance, i);
-                    break;
-                }
-            }
-        }
+        // Q/E navigation is handled inside CabinetTabStrip.Update so its
+        // lifecycle is bounded by the strip's own existence.
 
         private static void BuildStrip(InventoryGui gui, CabinetContainer cab)
         {
@@ -71,20 +59,23 @@ namespace ExtendedStorage.Patches
             s_strip = CabinetTabStrip.Build(panel, cab, stripWidth);
             s_strip.OnTabActivated = idx => RebindGrid(gui, cab, idx);
 
-            // Anchor to the top of the panel; pivot at bottom so the strip
-            // extends upward, above the panel header.
+            // Strip is parented to the chest panel; anchor it to the panel's
+            // top edge and let it extend upward (pivot at strip bottom).
             var rect = s_strip.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(0f, 1f);
             rect.pivot = new Vector2(0f, 0f);
             rect.anchoredPosition = new Vector2(0f, 4f);
-        }
 
-        private static void ActivateTab(InventoryGui gui, int idx)
-        {
-            if (s_currentCabinet == null) return;
-            s_strip?.SetActive(idx);
-            RebindGrid(gui, s_currentCabinet, idx);
+            // Drop the whole chest panel down by the strip's visual height so
+            // the strip occupies what used to be empty space above the panel
+            // — keeping the player inventory clear of the tabs.
+            float dropAmount = s_strip.TotalHeight + 4f;
+            s_droppedPanel = panel;
+            s_droppedPanelOriginalPos = panel.anchoredPosition;
+            panel.anchoredPosition = new Vector2(
+                s_droppedPanelOriginalPos.x,
+                s_droppedPanelOriginalPos.y - dropAmount);
         }
 
         private static void RebindGrid(InventoryGui gui, CabinetContainer cab, int idx)
@@ -104,6 +95,11 @@ namespace ExtendedStorage.Patches
             {
                 Object.Destroy(s_strip.gameObject);
                 s_strip = null;
+            }
+            if (s_droppedPanel != null)
+            {
+                s_droppedPanel.anchoredPosition = s_droppedPanelOriginalPos;
+                s_droppedPanel = null;
             }
             s_currentCabinet = null;
         }

@@ -41,7 +41,10 @@ namespace ExtendedStorage.UI
             if (HammerTabStyle.PanelBackground != null)
             {
                 bg.sprite = HammerTabStyle.PanelBackground;
-                bg.type = Image.Type.Sliced;
+                // 9-slice with the centre tiled instead of stretched — keeps
+                // the wood grain flowing without the striated squash that
+                // Sliced produced.
+                bg.type = Image.Type.Tiled;
                 bg.color = Color.white;
             }
             else
@@ -73,6 +76,34 @@ namespace ExtendedStorage.UI
             strip.RefreshAll();
             strip.SetActive(cab.Storage.ActiveTab);
             return strip;
+        }
+
+        private void Update()
+        {
+            if (_cab == null || !_cab.IsReady) return;
+
+            // Q / Left Bumper -> previous tab (wraparound).
+            // E / Right Bumper -> next tab.
+            // Keyed off Input.GetKeyDown so we don't intercept held-key flows.
+            bool prev = Input.GetKeyDown(KeyCode.Q) || TryGetButtonDown("JoyLBumper") || TryGetButtonDown("JoyLB");
+            bool next = Input.GetKeyDown(KeyCode.E) || TryGetButtonDown("JoyRBumper") || TryGetButtonDown("JoyRB");
+
+            if (prev)
+            {
+                int target = (_cab.Storage.ActiveTab - 1 + CabinetStorage.TabCount) % CabinetStorage.TabCount;
+                SetActive(target);
+            }
+            else if (next)
+            {
+                int target = (_cab.Storage.ActiveTab + 1) % CabinetStorage.TabCount;
+                SetActive(target);
+            }
+        }
+
+        private static bool TryGetButtonDown(string name)
+        {
+            try { return ZInput.instance != null && ZInput.GetButtonDown(name); }
+            catch { return false; }
         }
 
         public void SetActive(int index)
