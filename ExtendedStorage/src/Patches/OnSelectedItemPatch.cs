@@ -25,30 +25,22 @@ namespace ExtendedStorage.Patches
             InventoryGrid.Modifier mod)
         {
             if (item == null || grid == null) return true;
+            if (mod != InventoryGrid.Modifier.Move) return true;
 
             // m_currentContainer is private to Valheim; track our own.
             var cab = InventoryGuiPatches.CurrentCabinet;
             if (cab == null || !cab.IsReady) return true;
-
-            // Diagnostic — emitted only when a cabinet is open so we don't
-            // spam the log during normal inventory use. Remove once the
-            // routing is confirmed to work end-to-end.
-            var sourceInv = grid.GetInventory();
-            var player = Player.m_localPlayer;
-            var playerInv = player?.GetInventory();
-            ExtendedStoragePlugin.Log.LogInfo(
-                $"[OnSelectedItem] mod={mod}, ActiveTab={cab.Storage.ActiveTab}, " +
-                $"sourceInv='{sourceInv?.GetName() ?? "null"}' (slots={sourceInv?.GetWidth()}x{sourceInv?.GetHeight()}), " +
-                $"playerInv match={(sourceInv == playerInv)}, item={item.m_dropPrefab?.name}");
-
-            if (mod != InventoryGrid.Modifier.Move) return true;
             if (cab.Storage.ActiveTab == 0) return true; // vanilla already correct
 
-            if (player == null || playerInv == null) return true;
+            var player = Player.m_localPlayer;
+            if (player == null) return true;
+            var playerInv = player.GetInventory();
+            if (playerInv == null) return true;
 
             var activeTabInv = cab.GetTab(cab.Storage.ActiveTab);
             if (activeTabInv == null) return true;
 
+            var sourceInv = grid.GetInventory();
             if (sourceInv == playerInv)
             {
                 // Player -> chest active tab
