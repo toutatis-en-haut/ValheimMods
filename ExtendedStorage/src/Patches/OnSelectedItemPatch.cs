@@ -22,9 +22,9 @@ namespace ExtendedStorage.Patches
             InventoryGrid grid,
             ItemDrop.ItemData item,
             Vector2i pos,
-            InventoryGrid.Modifier modifier)
+            InventoryGrid.Modifier mod)
         {
-            if (modifier != InventoryGrid.Modifier.Move) return true;
+            if (mod != InventoryGrid.Modifier.Move) return true;
             if (item == null || grid == null) return true;
 
             // m_currentContainer is private to Valheim; track our own.
