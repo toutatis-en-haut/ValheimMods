@@ -27,19 +27,13 @@ namespace ExtendedStorage.UI
             rect.anchorMax = new Vector2(0f, 1f);
             rect.pivot = new Vector2(0f, 1f);
 
-            // Root Image is the click target AND the inactive tab body. Use
-            // the vanilla brown tab sprite (sliced 9-slice).
+            // Root Image is the click target AND the inactive tab body.
+            // Flat warm-brown — no sprite (the sampled sprite from
+            // m_pieceCategoryTabs in current Valheim is effectively
+            // white, which made labels disappear).
             var rootImg = go.GetComponent<Image>();
-            if (HammerTabStyle.TabBackground != null)
-            {
-                rootImg.sprite = HammerTabStyle.TabBackground;
-                rootImg.type = Image.Type.Sliced;
-                rootImg.color = Color.white;
-            }
-            else
-            {
-                rootImg.color = new Color(0.22f, 0.16f, 0.10f, 0.92f);
-            }
+            rootImg.sprite = null;
+            rootImg.color = HammerTabStyle.TabBodyColor;
             rootImg.raycastTarget = true;
 
             var tab = go.AddComponent<CabinetTab>();

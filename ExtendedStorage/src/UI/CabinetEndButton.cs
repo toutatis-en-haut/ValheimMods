@@ -17,16 +17,8 @@ namespace ExtendedStorage.UI
 
             var rect = go.GetComponent<RectTransform>();
             var bg = go.GetComponent<Image>();
-            if (HammerTabStyle.TabBackground != null)
-            {
-                bg.sprite = HammerTabStyle.TabBackground;
-                bg.type = Image.Type.Sliced;
-                bg.color = Color.white;
-            }
-            else
-            {
-                bg.color = new Color(0.22f, 0.16f, 0.10f, 0.92f);
-            }
+            bg.sprite = null;
+            bg.color = HammerTabStyle.TabBodyColor;
 
             var btn = go.GetComponent<Button>();
             btn.transition = Selectable.Transition.None;

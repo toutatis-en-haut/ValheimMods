@@ -6,12 +6,15 @@ namespace ExtendedStorage.UI
     internal static class HammerTabStyle
     {
         public static Sprite PanelBackground;
-        public static Sprite TabBackground;     // brown body sprite for inactive tabs
         public static Sprite SelectedHighlight; // blue cyan sprite for active tab
         public static Font LabelFont;
         public static int FontSize = 16;
-        public static Color LabelColor = new Color(0.95f, 0.95f, 0.95f, 1f); // bold white-ish
+        public static Color LabelColor = new Color(0.96f, 0.92f, 0.82f, 1f); // warm cream
         public static Color CountColor = new Color(1f, 0.83f, 0.18f, 1f);    // yellow [N]
+        // Flat warm-brown body for inactive tabs / Q/E buttons. Matches the
+        // tone of the vanilla Hammer tabs without relying on a sampled
+        // sprite (which turned out to be near-white in current Valheim).
+        public static Color TabBodyColor = new Color(0.18f, 0.12f, 0.07f, 0.92f);
 
         private static bool s_resolved;
 
@@ -56,19 +59,19 @@ namespace ExtendedStorage.UI
                         // Keep our white-ish default; vanilla colour can vary.
                     }
 
-                    // The tab root has the brown body Image. The "Selected"
-                    // child Image is the blue highlight, toggled on activation.
+                    // We don't sample the tab body sprite — in current
+                    // Valheim it comes through near-white, which makes our
+                    // labels disappear against it. CabinetTab paints a flat
+                    // warm-brown body via TabBodyColor instead.
+                    //
+                    // The Selected highlight is a child image (typically
+                    // named "Selected") shown only on activation.
                     var rootImg = tab.GetComponent<Image>();
-                    if (rootImg != null && rootImg.sprite != null)
-                    {
-                        TabBackground = rootImg.sprite;
-                    }
-
                     var images = tab.GetComponentsInChildren<Image>(includeInactive: true);
                     foreach (var img in images)
                     {
                         if (img == null || img.sprite == null) continue;
-                        if (img == rootImg) continue; // skip the root body sprite
+                        if (img == rootImg) continue;
                         var n = img.gameObject.name?.ToLowerInvariant();
                         if (n != null && (n.Contains("select") || n.Contains("active") || n.Contains("highlight")))
                         {
