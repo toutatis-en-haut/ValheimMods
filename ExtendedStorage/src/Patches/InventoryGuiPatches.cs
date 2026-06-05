@@ -11,6 +11,8 @@ namespace ExtendedStorage.Patches
         private static CabinetTabStrip s_strip;
         private static CabinetContainer s_currentCabinet;
 
+        internal static CabinetContainer CurrentCabinet => s_currentCabinet;
+
         [HarmonyPatch(nameof(InventoryGui.Show))]
         [HarmonyPostfix]
         private static void Show_Postfix(InventoryGui __instance, Container container)

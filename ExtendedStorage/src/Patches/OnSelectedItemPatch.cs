@@ -27,10 +27,8 @@ namespace ExtendedStorage.Patches
             if (modifier != InventoryGrid.Modifier.Move) return true;
             if (item == null || grid == null) return true;
 
-            var container = __instance.m_currentContainer;
-            if (container == null) return true;
-
-            var cab = container.GetComponent<CabinetContainer>();
+            // m_currentContainer is private to Valheim; track our own.
+            var cab = InventoryGuiPatches.CurrentCabinet;
             if (cab == null || !cab.IsReady) return true;
             if (cab.Storage.ActiveTab == 0) return true; // vanilla already correct
 
