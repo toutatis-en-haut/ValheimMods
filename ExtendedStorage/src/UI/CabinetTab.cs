@@ -1,120 +1,147 @@
 using System;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace ExtendedStorage.UI
 {
-    internal class CabinetTab : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    internal class CabinetTab : MonoBehaviour
     {
-        private static readonly Color NormalColor = new Color(0.10f, 0.08f, 0.05f, 0.85f);
-        private static readonly Color HoverColor  = new Color(0.20f, 0.16f, 0.10f, 0.92f);
-        private static readonly Color ActiveColor = new Color(0.32f, 0.24f, 0.14f, 0.95f);
-
-        private static readonly Color FillNormal = new Color(0.88f, 0.84f, 0.70f, 1f);
-        private static readonly Color FillEmpty  = new Color(0.55f, 0.50f, 0.40f, 0.75f);
-
         public int Index { get; private set; }
         public RectTransform Rect { get; private set; }
         public Text LabelText { get; private set; }
-        public Text FillText { get; private set; }
-        public Image Background { get; private set; }
+        public Image SelectedImage { get; private set; }
         public Action<int> OnClicked;
 
-        private bool _hovered;
+        private string _label = "1";
+        private int _fillCount;
         private bool _active;
 
-        public static CabinetTab Create(Transform parent, int index, Font font)
+        public static CabinetTab Create(Transform parent, int index)
         {
-            var go = new GameObject($"CabinetTab_{index}", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            var go = new GameObject(
+                $"CabinetTab_{index}",
+                typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
             go.transform.SetParent(parent, false);
             var rect = go.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(0f, 1f);
             rect.pivot = new Vector2(0f, 1f);
 
-            var bg = go.GetComponent<Image>();
-            bg.color = NormalColor;
+            // Root Image is the click target; keep it transparent so the wood
+            // panel underneath shows through on inactive tabs.
+            var rootImg = go.GetComponent<Image>();
+            rootImg.color = new Color(1f, 1f, 1f, 0f);
+            rootImg.raycastTarget = true;
 
             var tab = go.AddComponent<CabinetTab>();
             tab.Index = index;
             tab.Rect = rect;
-            tab.Background = bg;
 
-            tab.LabelText = CreateText(go.transform, "Label", font, TextAnchor.MiddleLeft);
-            tab.FillText  = CreateText(go.transform, "Fill",  font, TextAnchor.MiddleRight);
-            tab.FillText.fontSize = 12;
+            // Selected highlight — sits under the label, shown only when active.
+            tab.SelectedImage = CreateSelectedImage(go.transform);
 
-            // Label text — left-anchored with left padding.
-            var lr = tab.LabelText.rectTransform;
-            lr.anchorMin = new Vector2(0f, 0f);
-            lr.anchorMax = new Vector2(1f, 1f);
-            lr.offsetMin = new Vector2(10f, 0f);
-            lr.offsetMax = new Vector2(-38f, 0f);
-
-            // Fill indicator — right-anchored.
-            var fr = tab.FillText.rectTransform;
-            fr.anchorMin = new Vector2(1f, 0f);
-            fr.anchorMax = new Vector2(1f, 1f);
-            fr.pivot = new Vector2(1f, 0.5f);
-            fr.offsetMin = new Vector2(-36f, 0f);
-            fr.offsetMax = new Vector2(-6f, 0f);
+            // Single Text using rich-text for "Label [N/15]" with the count in
+            // yellow. Vanilla Hammer tabs use the same pattern.
+            tab.LabelText = CreateLabel(go.transform);
 
             var button = go.GetComponent<Button>();
             button.transition = Selectable.Transition.None;
             button.onClick.AddListener(() => tab.OnClicked?.Invoke(tab.Index));
 
-            tab.Refresh();
+            tab.RefreshActive();
             return tab;
         }
 
         public void SetLabel(string text)
         {
-            if (LabelText != null) LabelText.text = text ?? string.Empty;
+            _label = string.IsNullOrEmpty(text) ? "?" : text;
+            RefreshLabel();
         }
 
-        public void SetFill(int count, int max)
+        public void SetFill(int count)
         {
-            if (FillText == null) return;
-            FillText.text = $"{count}/{max}";
-            FillText.color = count == 0 ? FillEmpty : FillNormal;
+            _fillCount = count;
+            RefreshLabel();
         }
 
         public void SetActive(bool active)
         {
             _active = active;
-            Refresh();
+            RefreshActive();
         }
 
-        public void OnPointerEnter(PointerEventData _)
+        public float MeasuredWidth(float horizontalPadding)
         {
-            _hovered = true;
-            Refresh();
+            if (LabelText == null) return 0f;
+            // Force-rebuild geometry to get a fresh preferredWidth.
+            LabelText.SetAllDirty();
+            return LabelText.preferredWidth + horizontalPadding;
         }
 
-        public void OnPointerExit(PointerEventData _)
+        private void RefreshLabel()
         {
-            _hovered = false;
-            Refresh();
+            if (LabelText == null) return;
+            var countColorHex = ColorUtility.ToHtmlStringRGBA(HammerTabStyle.CountColor);
+            LabelText.text = $"{_label} <color=#{countColorHex}>[{_fillCount}/{Storage.CabinetStorage.TabSlots}]</color>";
         }
 
-        private void Refresh()
+        private void RefreshActive()
         {
-            if (Background == null) return;
-            Background.color = _active ? ActiveColor : (_hovered ? HoverColor : NormalColor);
+            if (SelectedImage != null) SelectedImage.gameObject.SetActive(_active);
+            if (LabelText != null)
+            {
+                LabelText.color = _active
+                    ? new Color(1f, 1f, 1f, 1f)
+                    : HammerTabStyle.LabelColor;
+            }
         }
 
-        private static Text CreateText(Transform parent, string name, Font font, TextAnchor anchor)
+        private static Image CreateSelectedImage(Transform parent)
         {
-            var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            var go = new GameObject("Selected", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             go.transform.SetParent(parent, false);
+            var rect = go.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = new Vector2(2f, 2f);
+            rect.offsetMax = new Vector2(-2f, -2f);
+
+            var img = go.GetComponent<Image>();
+            img.raycastTarget = false;
+            if (HammerTabStyle.SelectedHighlight != null)
+            {
+                img.sprite = HammerTabStyle.SelectedHighlight;
+                img.type = Image.Type.Sliced;
+                img.color = Color.white;
+            }
+            else
+            {
+                // Fallback: solid blue rectangle.
+                img.color = new Color(0.30f, 0.65f, 0.95f, 0.55f);
+            }
+            go.SetActive(false);
+            return img;
+        }
+
+        private static Text CreateLabel(Transform parent)
+        {
+            var go = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            go.transform.SetParent(parent, false);
+            var rect = go.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = new Vector2(12f, 0f);
+            rect.offsetMax = new Vector2(-12f, 0f);
+
             var t = go.GetComponent<Text>();
-            t.font = font;
-            t.alignment = anchor;
-            t.fontSize = 14;
-            t.color = new Color(0.95f, 0.92f, 0.84f, 1f);
+            t.font = HammerTabStyle.LabelFont ?? Font.CreateDynamicFontFromOSFont("Arial", 16);
+            t.fontSize = HammerTabStyle.FontSize;
+            t.alignment = TextAnchor.MiddleCenter;
+            t.color = HammerTabStyle.LabelColor;
+            t.supportRichText = true;
             t.horizontalOverflow = HorizontalWrapMode.Overflow;
             t.verticalOverflow = VerticalWrapMode.Truncate;
+            t.raycastTarget = false;
             return t;
         }
     }

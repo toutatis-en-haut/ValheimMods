@@ -9,32 +9,49 @@ namespace ExtendedStorage.UI
     {
         private const float MinTabWidth = 80f;
         private const float MaxTabWidth = 250f;
-        private const float TabHeight   = 28f;
-        private const float TabGap      = 4f;
-        private const float RowGap      = 4f;
-        private const float LabelPaddingX = 22f; // left + right padding around the label
+        private const float TabHeight   = 36f;
+        private const float TabGap      = 2f;
+        private const float RowGap      = 2f;
+        private const float LabelHorizontalPadding = 32f;
+        private const float StripVerticalPadding = 4f;
 
         public Action<int> OnTabActivated;
 
         private CabinetContainer _cab;
         private CabinetTab[] _tabs;
-        private float _stripWidth;
         private RectTransform _rect;
+        private Image _background;
+        private float _stripWidth;
         private Action[] _onChangedHandlers;
         public float TotalHeight { get; private set; }
 
-        public static CabinetTabStrip Build(Transform parent, CabinetContainer cab, float stripWidth, Font font)
+        public static CabinetTabStrip Build(Transform parent, CabinetContainer cab, float stripWidth)
         {
-            var go = new GameObject("CabinetTabStrip", typeof(RectTransform));
+            HammerTabStyle.Resolve();
+
+            var go = new GameObject("CabinetTabStrip", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             go.transform.SetParent(parent, false);
             var rect = go.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(0f, 1f);
             rect.pivot = new Vector2(0f, 0f);
-            rect.sizeDelta = new Vector2(stripWidth, TabHeight);
+            rect.sizeDelta = new Vector2(stripWidth, TabHeight + StripVerticalPadding * 2f);
+
+            var bg = go.GetComponent<Image>();
+            if (HammerTabStyle.PanelBackground != null)
+            {
+                bg.sprite = HammerTabStyle.PanelBackground;
+                bg.type = Image.Type.Sliced;
+                bg.color = Color.white;
+            }
+            else
+            {
+                bg.color = new Color(0.12f, 0.08f, 0.04f, 0.90f);
+            }
 
             var strip = go.AddComponent<CabinetTabStrip>();
             strip._rect = rect;
+            strip._background = bg;
             strip._cab = cab;
             strip._stripWidth = stripWidth;
 
@@ -42,7 +59,7 @@ namespace ExtendedStorage.UI
             strip._onChangedHandlers = new Action[CabinetStorage.TabCount];
             for (int i = 0; i < CabinetStorage.TabCount; i++)
             {
-                var tab = CabinetTab.Create(go.transform, i, font);
+                var tab = CabinetTab.Create(go.transform, i);
                 tab.OnClicked = idx => strip.OnTabClicked(idx);
                 strip._tabs[i] = tab;
 
@@ -71,9 +88,8 @@ namespace ExtendedStorage.UI
 
         public void RefreshAll()
         {
-            float x = 0f;
-            float y = 0f;
-            float maxRowEnd = 0f;
+            float x = StripVerticalPadding;
+            float y = -StripVerticalPadding;
 
             for (int i = 0; i < _tabs.Length; i++)
             {
@@ -83,17 +99,14 @@ namespace ExtendedStorage.UI
 
                 var inv = _cab.GetTab(i);
                 int fill = inv?.NrOfItems() ?? 0;
-                tab.SetFill(fill, CabinetStorage.TabSlots);
+                tab.SetFill(fill);
 
-                float textWidth = tab.LabelText.preferredWidth;
-                float fillWidth = tab.FillText.preferredWidth;
-                float desired = textWidth + LabelPaddingX + fillWidth + 8f;
-                float width = Mathf.Clamp(desired, MinTabWidth, MaxTabWidth);
+                float measured = tab.MeasuredWidth(LabelHorizontalPadding);
+                float width = Mathf.Clamp(measured, MinTabWidth, MaxTabWidth);
 
-                // Row cascade: if this tab would overflow, wrap to the next row.
-                if (x > 0f && x + width > _stripWidth)
+                if (x > StripVerticalPadding && x + width > _stripWidth - StripVerticalPadding)
                 {
-                    x = 0f;
+                    x = StripVerticalPadding;
                     y -= TabHeight + RowGap;
                 }
 
@@ -101,10 +114,9 @@ namespace ExtendedStorage.UI
                 tab.Rect.anchoredPosition = new Vector2(x, y);
 
                 x += width + TabGap;
-                maxRowEnd = Mathf.Max(maxRowEnd, x);
             }
 
-            TotalHeight = -y + TabHeight;
+            TotalHeight = -y + TabHeight + StripVerticalPadding;
             if (_rect != null)
             {
                 _rect.sizeDelta = new Vector2(_stripWidth, TotalHeight);
@@ -116,7 +128,7 @@ namespace ExtendedStorage.UI
             if (index < 0 || index >= _tabs.Length) return;
             var inv = _cab.GetTab(index);
             int fill = inv?.NrOfItems() ?? 0;
-            _tabs[index].SetFill(fill, CabinetStorage.TabSlots);
+            _tabs[index].SetFill(fill);
         }
 
         private void OnTabClicked(int index) => SetActive(index);

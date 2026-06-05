@@ -2,7 +2,6 @@ using ExtendedStorage.Storage;
 using ExtendedStorage.UI;
 using HarmonyLib;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace ExtendedStorage.Patches
 {
@@ -66,9 +65,8 @@ namespace ExtendedStorage.Patches
             }
 
             float stripWidth = panel.rect.width;
-            var font = ResolveFont(gui);
 
-            s_strip = CabinetTabStrip.Build(panel, cab, stripWidth, font);
+            s_strip = CabinetTabStrip.Build(panel, cab, stripWidth);
             s_strip.OnTabActivated = idx => RebindGrid(gui, cab, idx);
 
             // Anchor to the top of the panel; pivot at bottom so the strip
@@ -108,11 +106,5 @@ namespace ExtendedStorage.Patches
             s_currentCabinet = null;
         }
 
-        private static Font ResolveFont(InventoryGui gui)
-        {
-            // Borrow a font from any Text component under the inventory GUI.
-            var anyText = gui.GetComponentInChildren<Text>(includeInactive: true);
-            return anyText != null ? anyText.font : Font.CreateDynamicFontFromOSFont("Arial", 14);
-        }
     }
 }
