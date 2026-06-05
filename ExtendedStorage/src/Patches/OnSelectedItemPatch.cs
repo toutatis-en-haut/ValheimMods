@@ -38,7 +38,7 @@ namespace ExtendedStorage.Patches
             var playerInv = player?.GetInventory();
             ExtendedStoragePlugin.Log.LogInfo(
                 $"[OnSelectedItem] mod={mod}, ActiveTab={cab.Storage.ActiveTab}, " +
-                $"sourceInv='{sourceInv?.m_name ?? "null"}' (slots={sourceInv?.GetWidth()}x{sourceInv?.GetHeight()}), " +
+                $"sourceInv='{sourceInv?.GetName() ?? "null"}' (slots={sourceInv?.GetWidth()}x{sourceInv?.GetHeight()}), " +
                 $"playerInv match={(sourceInv == playerInv)}, item={item.m_dropPrefab?.name}");
 
             if (mod != InventoryGrid.Modifier.Move) return true;
