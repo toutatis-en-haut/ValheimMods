@@ -7,13 +7,15 @@ namespace ExtendedStorage.UI
 {
     internal class CabinetTabStrip : MonoBehaviour
     {
-        private const float MinTabWidth = 80f;
+        private const float MinTabWidth = 90f;
         private const float MaxTabWidth = 250f;
         private const float TabHeight   = 36f;
         private const float TabGap      = 2f;
         private const float RowGap      = 2f;
         private const float LabelHorizontalPadding = 32f;
-        private const float StripVerticalPadding = 4f;
+        private const float StripVerticalPadding = 6f;
+        private const float EndButtonWidth = 36f;
+        private const float EndButtonGap = 6f;
 
         public Action<int> OnTabActivated;
 
@@ -23,6 +25,8 @@ namespace ExtendedStorage.UI
         private Image _background;
         private float _stripWidth;
         private Action[] _onChangedHandlers;
+        private CabinetEndButton _qButton;
+        private CabinetEndButton _eButton;
         public float TotalHeight { get; private set; }
 
         public static CabinetTabStrip Build(Transform parent, CabinetContainer cab, float stripWidth)
@@ -41,9 +45,6 @@ namespace ExtendedStorage.UI
             if (HammerTabStyle.PanelBackground != null)
             {
                 bg.sprite = HammerTabStyle.PanelBackground;
-                // 9-slice with the centre tiled instead of stretched — keeps
-                // the wood grain flowing without the striated squash that
-                // Sliced produced.
                 bg.type = Image.Type.Tiled;
                 bg.color = Color.white;
             }
@@ -73,6 +74,9 @@ namespace ExtendedStorage.UI
                 if (inv != null) inv.m_onChanged += handler;
             }
 
+            strip._qButton = CabinetEndButton.Create(go.transform, "Q", () => strip.StepActive(-1));
+            strip._eButton = CabinetEndButton.Create(go.transform, "E", () => strip.StepActive(+1));
+
             strip.RefreshAll();
             strip.SetActive(cab.Storage.ActiveTab);
             return strip;
@@ -82,22 +86,17 @@ namespace ExtendedStorage.UI
         {
             if (_cab == null || !_cab.IsReady) return;
 
-            // Q / Left Bumper -> previous tab (wraparound).
-            // E / Right Bumper -> next tab.
-            // Keyed off Input.GetKeyDown so we don't intercept held-key flows.
             bool prev = Input.GetKeyDown(KeyCode.Q) || TryGetButtonDown("JoyLBumper") || TryGetButtonDown("JoyLB");
             bool next = Input.GetKeyDown(KeyCode.E) || TryGetButtonDown("JoyRBumper") || TryGetButtonDown("JoyRB");
 
-            if (prev)
-            {
-                int target = (_cab.Storage.ActiveTab - 1 + CabinetStorage.TabCount) % CabinetStorage.TabCount;
-                SetActive(target);
-            }
-            else if (next)
-            {
-                int target = (_cab.Storage.ActiveTab + 1) % CabinetStorage.TabCount;
-                SetActive(target);
-            }
+            if (prev) StepActive(-1);
+            else if (next) StepActive(+1);
+        }
+
+        private void StepActive(int delta)
+        {
+            int target = ((_cab.Storage.ActiveTab + delta) % CabinetStorage.TabCount + CabinetStorage.TabCount) % CabinetStorage.TabCount;
+            SetActive(target);
         }
 
         private static bool TryGetButtonDown(string name)
@@ -119,38 +118,93 @@ namespace ExtendedStorage.UI
 
         public void RefreshAll()
         {
-            float x = StripVerticalPadding;
-            float y = -StripVerticalPadding;
-
+            // First pass: figure out per-tab widths.
+            float[] widths = new float[_tabs.Length];
+            float totalRowOneWidth = 0f;
             for (int i = 0; i < _tabs.Length; i++)
             {
                 var tab = _tabs[i];
-                var label = _cab.Storage.EffectiveLabel(i);
-                tab.SetLabel(label);
-
+                tab.SetLabel(_cab.Storage.EffectiveLabel(i));
                 var inv = _cab.GetTab(i);
-                int fill = inv?.NrOfItems() ?? 0;
-                tab.SetFill(fill);
+                tab.SetFill(inv?.NrOfItems() ?? 0);
 
                 float measured = tab.MeasuredWidth(LabelHorizontalPadding);
-                float width = Mathf.Clamp(measured, MinTabWidth, MaxTabWidth);
+                widths[i] = Mathf.Clamp(measured, MinTabWidth, MaxTabWidth);
+                totalRowOneWidth += widths[i];
+                if (i > 0) totalRowOneWidth += TabGap;
+            }
 
-                if (x > StripVerticalPadding && x + width > _stripWidth - StripVerticalPadding)
+            // End buttons are anchored to the strip's left/right ends, sharing
+            // its full height.
+            float endButtonOuterMargin = StripVerticalPadding;
+            float tabsAvailableWidth = _stripWidth
+                - 2f * EndButtonWidth - 2f * EndButtonGap - 2f * endButtonOuterMargin;
+
+            // Single-row centred layout when everything fits; otherwise fall
+            // back to multi-row left-aligned.
+            bool singleRow = totalRowOneWidth <= tabsAvailableWidth;
+
+            float y = -StripVerticalPadding;
+            float rowOriginX;
+            float x;
+
+            if (singleRow)
+            {
+                rowOriginX = endButtonOuterMargin + EndButtonWidth + EndButtonGap
+                             + (tabsAvailableWidth - totalRowOneWidth) * 0.5f;
+                x = rowOriginX;
+                for (int i = 0; i < _tabs.Length; i++)
                 {
-                    x = StripVerticalPadding;
-                    y -= TabHeight + RowGap;
+                    _tabs[i].Rect.sizeDelta = new Vector2(widths[i], TabHeight);
+                    _tabs[i].Rect.anchoredPosition = new Vector2(x, y);
+                    x += widths[i] + TabGap;
                 }
-
-                tab.Rect.sizeDelta = new Vector2(width, TabHeight);
-                tab.Rect.anchoredPosition = new Vector2(x, y);
-
-                x += width + TabGap;
+            }
+            else
+            {
+                rowOriginX = endButtonOuterMargin + EndButtonWidth + EndButtonGap;
+                x = rowOriginX;
+                for (int i = 0; i < _tabs.Length; i++)
+                {
+                    if (x > rowOriginX && x + widths[i] > rowOriginX + tabsAvailableWidth)
+                    {
+                        x = rowOriginX;
+                        y -= TabHeight + RowGap;
+                    }
+                    _tabs[i].Rect.sizeDelta = new Vector2(widths[i], TabHeight);
+                    _tabs[i].Rect.anchoredPosition = new Vector2(x, y);
+                    x += widths[i] + TabGap;
+                }
             }
 
             TotalHeight = -y + TabHeight + StripVerticalPadding;
             if (_rect != null)
             {
                 _rect.sizeDelta = new Vector2(_stripWidth, TotalHeight);
+            }
+
+            PlaceEndButtons(endButtonOuterMargin);
+        }
+
+        private void PlaceEndButtons(float outerMargin)
+        {
+            if (_qButton != null)
+            {
+                var r = _qButton.Rect;
+                r.anchorMin = new Vector2(0f, 1f);
+                r.anchorMax = new Vector2(0f, 1f);
+                r.pivot = new Vector2(0f, 1f);
+                r.sizeDelta = new Vector2(EndButtonWidth, TabHeight);
+                r.anchoredPosition = new Vector2(outerMargin, -StripVerticalPadding);
+            }
+            if (_eButton != null)
+            {
+                var r = _eButton.Rect;
+                r.anchorMin = new Vector2(1f, 1f);
+                r.anchorMax = new Vector2(1f, 1f);
+                r.pivot = new Vector2(1f, 1f);
+                r.sizeDelta = new Vector2(EndButtonWidth, TabHeight);
+                r.anchoredPosition = new Vector2(-outerMargin, -StripVerticalPadding);
             }
         }
 

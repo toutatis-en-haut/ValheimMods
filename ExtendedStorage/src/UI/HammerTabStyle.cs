@@ -6,11 +6,12 @@ namespace ExtendedStorage.UI
     internal static class HammerTabStyle
     {
         public static Sprite PanelBackground;
-        public static Sprite SelectedHighlight;
+        public static Sprite TabBackground;     // brown body sprite for inactive tabs
+        public static Sprite SelectedHighlight; // blue cyan sprite for active tab
         public static Font LabelFont;
         public static int FontSize = 16;
-        public static Color LabelColor = new Color(0.95f, 0.88f, 0.65f, 1f);
-        public static Color CountColor = new Color(1f, 0.83f, 0.18f, 1f); // yellow [N/15]
+        public static Color LabelColor = new Color(0.95f, 0.95f, 0.95f, 1f); // bold white-ish
+        public static Color CountColor = new Color(1f, 0.83f, 0.18f, 1f);    // yellow [N]
 
         private static bool s_resolved;
 
@@ -52,17 +53,22 @@ namespace ExtendedStorage.UI
                     {
                         LabelFont = label.font;
                         FontSize = label.fontSize > 0 ? label.fontSize : FontSize;
-                        LabelColor = label.color;
+                        // Keep our white-ish default; vanilla colour can vary.
                     }
 
-                    // The Selected highlight is typically a child image whose
-                    // GameObject is named "Selected" (or similar). Match by
-                    // any image child that is currently inactive in this
-                    // template — that's the highlight shown only on selection.
+                    // The tab root has the brown body Image. The "Selected"
+                    // child Image is the blue highlight, toggled on activation.
+                    var rootImg = tab.GetComponent<Image>();
+                    if (rootImg != null && rootImg.sprite != null)
+                    {
+                        TabBackground = rootImg.sprite;
+                    }
+
                     var images = tab.GetComponentsInChildren<Image>(includeInactive: true);
                     foreach (var img in images)
                     {
                         if (img == null || img.sprite == null) continue;
+                        if (img == rootImg) continue; // skip the root body sprite
                         var n = img.gameObject.name?.ToLowerInvariant();
                         if (n != null && (n.Contains("select") || n.Contains("active") || n.Contains("highlight")))
                         {
@@ -72,9 +78,9 @@ namespace ExtendedStorage.UI
                     }
                     if (SelectedHighlight == null)
                     {
-                        // Fallback: any non-default sliced image in the tab.
                         foreach (var img in images)
                         {
+                            if (img == rootImg) continue;
                             if (img.sprite != null && img.type == Image.Type.Sliced)
                             {
                                 SelectedHighlight = img.sprite;

@@ -27,10 +27,19 @@ namespace ExtendedStorage.UI
             rect.anchorMax = new Vector2(0f, 1f);
             rect.pivot = new Vector2(0f, 1f);
 
-            // Root Image is the click target; keep it transparent so the wood
-            // panel underneath shows through on inactive tabs.
+            // Root Image is the click target AND the inactive tab body. Use
+            // the vanilla brown tab sprite (sliced 9-slice).
             var rootImg = go.GetComponent<Image>();
-            rootImg.color = new Color(1f, 1f, 1f, 0f);
+            if (HammerTabStyle.TabBackground != null)
+            {
+                rootImg.sprite = HammerTabStyle.TabBackground;
+                rootImg.type = Image.Type.Sliced;
+                rootImg.color = Color.white;
+            }
+            else
+            {
+                rootImg.color = new Color(0.22f, 0.16f, 0.10f, 0.92f);
+            }
             rootImg.raycastTarget = true;
 
             var tab = go.AddComponent<CabinetTab>();
@@ -136,6 +145,7 @@ namespace ExtendedStorage.UI
             var t = go.GetComponent<Text>();
             t.font = HammerTabStyle.LabelFont ?? Font.CreateDynamicFontFromOSFont("Arial", 16);
             t.fontSize = HammerTabStyle.FontSize;
+            t.fontStyle = FontStyle.Bold;
             t.alignment = TextAnchor.MiddleCenter;
             t.color = HammerTabStyle.LabelColor;
             t.supportRichText = true;
