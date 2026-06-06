@@ -1,4 +1,5 @@
 using System;
+using ExtendedStorage.Config;
 using ExtendedStorage.Storage;
 using UnityEngine;
 using UnityEngine.UI;
@@ -86,11 +87,78 @@ namespace ExtendedStorage.UI
         {
             if (_cab == null || !_cab.IsReady) return;
 
-            bool prev = Input.GetKeyDown(KeyCode.Q) || TryGetButtonDown("JoyLBumper") || TryGetButtonDown("JoyLB");
-            bool next = Input.GetKeyDown(KeyCode.E) || TryGetButtonDown("JoyRBumper") || TryGetButtonDown("JoyRB");
+            // Editing mode: only handle Esc to cancel; the InputField on the
+            // editing tab handles every other keystroke (including Enter via
+            // its onSubmit listener) and the visual update.
+            var editing = GetEditingTab();
+            if (editing != null)
+            {
+                if (Input.GetKeyDown(KeyCode.Escape))
+                {
+                    editing.ExitEditMode(commit: false);
+                    RefreshAll();
+                }
+                return;
+            }
+
+            // Edit hotkey (default Shift+E) while hovering a tab.
+            var editKey = CabinetConfig.EditLabelHotkey?.Value;
+            if (editKey.HasValue && editKey.Value.IsDown())
+            {
+                var hovered = GetHoveredTab();
+                if (hovered != null)
+                {
+                    string initial = _cab.Storage.Labels[hovered.Index]
+                        ?? CabinetStorage.DefaultLabel(hovered.Index);
+                    hovered.EnterEditMode(initial, OnEditCommitted, OnEditLiveChanged);
+                    return;
+                }
+            }
+
+            // Q/E navigation. Suppress when any shift key is held so it
+            // doesn't double-fire with the Shift+E edit hotkey.
+            bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            bool prev = !shift && (Input.GetKeyDown(KeyCode.Q) || TryGetButtonDown("JoyLBumper") || TryGetButtonDown("JoyLB"));
+            bool next = !shift && (Input.GetKeyDown(KeyCode.E) || TryGetButtonDown("JoyRBumper") || TryGetButtonDown("JoyRB"));
 
             if (prev) StepActive(-1);
             else if (next) StepActive(+1);
+        }
+
+        private CabinetTab GetEditingTab()
+        {
+            for (int i = 0; i < _tabs.Length; i++)
+            {
+                if (_tabs[i].IsEditing) return _tabs[i];
+            }
+            return null;
+        }
+
+        private CabinetTab GetHoveredTab()
+        {
+            for (int i = 0; i < _tabs.Length; i++)
+            {
+                if (_tabs[i].IsHovered) return _tabs[i];
+            }
+            return null;
+        }
+
+        private void OnEditCommitted(int tabIndex, string newLabel)
+        {
+            // SetLabel normalises empty → default tab number.
+            _cab.SetLabel(tabIndex, newLabel);
+            RefreshAll();
+        }
+
+        private void OnEditLiveChanged(int tabIndex, string text)
+        {
+            // Update the cached label so RefreshAll measures the tab against
+            // the in-progress edit string. The actual ZDO write only happens
+            // on commit; cancel reverts the visual via RefreshAll below.
+            _tabs[tabIndex].SetLabel(string.IsNullOrEmpty(text)
+                ? CabinetStorage.DefaultLabel(tabIndex)
+                : text);
+            RefreshAll();
         }
 
         private void StepActive(int delta)
@@ -107,7 +175,19 @@ namespace ExtendedStorage.UI
 
         public void SetActive(int index)
         {
+            if (_tabs == null) return;
             if (index < 0 || index >= CabinetStorage.TabCount) return;
+
+            // Switching tabs while a label edit is in progress discards the
+            // edit — matches "closing the window mid-edit discards" intent
+            // for any nav action.
+            var editing = GetEditingTab();
+            if (editing != null && editing.Index != index)
+            {
+                editing.ExitEditMode(commit: false);
+                _tabs[editing.Index].SetLabel(_cab.Storage.EffectiveLabel(editing.Index));
+            }
+
             _cab.Storage.ActiveTab = index;
             for (int i = 0; i < _tabs.Length; i++)
             {

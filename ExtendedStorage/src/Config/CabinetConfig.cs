@@ -1,4 +1,5 @@
 using BepInEx.Configuration;
+using UnityEngine;
 
 namespace ExtendedStorage.Config
 {
@@ -8,6 +9,7 @@ namespace ExtendedStorage.Config
         public static ConfigEntry<int> ResinAmount;
         public static ConfigEntry<int> WorkbenchLevel;
         public static ConfigEntry<float> HitPoints;
+        public static ConfigEntry<KeyboardShortcut> EditLabelHotkey;
 
         public static void Bind(ConfigFile cfg)
         {
@@ -24,6 +26,12 @@ namespace ExtendedStorage.Config
             HitPoints = cfg.Bind(
                 "WoodenCabinet", "HitPoints", 1000f,
                 "Hit points of the Wooden Cabinet (durability before destruction).");
+
+            EditLabelHotkey = cfg.Bind(
+                "UI", "EditLabelHotkey",
+                new KeyboardShortcut(KeyCode.E, KeyCode.LeftShift),
+                "Hotkey to enter tab-label edit mode while hovering a tab. " +
+                "Default Shift+E. Press Enter to commit, Esc to discard.");
         }
     }
 }
