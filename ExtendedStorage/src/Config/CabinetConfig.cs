@@ -10,6 +10,8 @@ namespace ExtendedStorage.Config
         public static ConfigEntry<int> WorkbenchLevel;
         public static ConfigEntry<float> HitPoints;
         public static ConfigEntry<KeyboardShortcut> EditLabelHotkey;
+        public static ConfigEntry<int> HoverCellSize;
+        public static ConfigEntry<bool> HoverIgnoreWard;
 
         public static void Bind(ConfigFile cfg)
         {
@@ -32,6 +34,16 @@ namespace ExtendedStorage.Config
                 new KeyboardShortcut(KeyCode.E, KeyCode.LeftShift),
                 "Hotkey to enter tab-label edit mode while hovering a tab. " +
                 "Default Shift+E. Press Enter to commit, Esc to discard.");
+
+            HoverCellSize = cfg.Bind(
+                "Hover", "CellSize", 36,
+                new ConfigDescription(
+                    "Icon cell size (px) for the shift-hover content panel.",
+                    new AcceptableValueRange<int>(24, 64)));
+            HoverIgnoreWard = cfg.Bind(
+                "Hover", "IgnoreWard", false,
+                "When true, the shift-hover content panel shows contents even " +
+                "if the cabinet is inside another player's ward. Useful in solo play.");
         }
     }
 }

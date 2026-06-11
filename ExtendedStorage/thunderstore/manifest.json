@@ -1,6 +1,6 @@
 {
   "name": "Extended_Storage",
-  "version_number": "0.2.0",
+  "version_number": "0.2.1",
   "website_url": "https://github.com/toutatis-en-haut/ValheimMods",
   "description": "Tabbed storage cabinets — six labelled drawers in one footprint, with a shift-hover content preview.",
   "dependencies": [

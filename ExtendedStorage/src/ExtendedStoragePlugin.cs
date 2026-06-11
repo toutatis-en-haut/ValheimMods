@@ -17,7 +17,7 @@ namespace ExtendedStorage
     {
         public const string ModGuid = "toutatis.extended_storage";
         public const string ModName = "Extended Storage";
-        public const string ModVersion = "0.2.0";
+        public const string ModVersion = "0.2.1";
 
         internal static ManualLogSource Log;
         internal static Harmony Harmony;

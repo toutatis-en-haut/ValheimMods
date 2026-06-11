@@ -219,34 +219,36 @@ Key decisions:
 
 ---
 
-## Phase 6: Shift+hover content panel
+## Phase 6: Shift+hover content panel — COMPLETE
 
 **Goal:** Without opening the cabinet, holding **Shift** while the crosshair is
 over a cabinet shows a per-tab icon-grid panel summarizing all six tabs.
 Design reference: CDEVx's `ChestItemsHoverDisplay` (approach only — no copied
 code; their published source is decompiled and not safely reusable).
 
-- [ ] Harmony **postfix** on `Hud.UpdateCrosshair` — detect hover target,
+- [x] Harmony **postfix** on `Hud.UpdateCrosshair` — detect hover target,
       branch to our panel when it resolves to one of our cabinets
-- [ ] `PrivateArea.CheckAccess()` gate — if the player can't open the
+- [x] `PrivateArea.CheckAccess()` gate — if the player can't open the
       cabinet, don't show contents (config toggle to override for solo play)
-- [ ] Show/hide rule: **only while Shift is held** AND crosshair is on the
+- [x] Show/hide rule: **only while Shift is held** AND crosshair is on the
       cabinet. Releasing Shift, looking away, or opening the cabinet hides
       the panel and restores the standard `WoodenCabinet — $piece_use` text.
-- [ ] Panel layout: vertical stack of six **tab sections**, in tab order:
+- [x] Panel layout: vertical stack of six **tab sections**, in tab order:
       - Section header: `[label]  N/15`
       - Icon grid: 5 columns × 3 rows (matches the per-tab 15-slot shape),
         sprite + stack count per slot, empty slots dimmed
       - Skip section render entirely if `0/15`? — default **show all six**
         so the layout is stable; revisit if it feels noisy
 - [ ] Empty cabinet → render a compact `WoodenCabinet (empty)` card instead
-      of six empty grids
-- [ ] Cell size: default 36 px, exposed via BepInEx config (24–64 range)
-- [ ] Panel anchored to the cursor area (mirror vanilla hover-text anchor) —
+      of six empty grids _(deferred — playtest first; layout stability won)_
+- [x] Cell size: default 36 px, exposed via BepInEx config (24–64 range)
+- [x] Panel anchored to the cursor area (mirror vanilla hover-text anchor) —
       offset so it doesn't occlude the crosshair
-- [ ] Refresh cadence: rebuild on ZDO version change, not every frame
+- [x] Refresh cadence: rebuild on ZDO version change, not every frame
       (cache the rendered grid; invalidate on `m_dataRevision` bump)
-- [ ] Verify it works with our 6-inventory model by reading our own
+      _(implemented as a 250 ms throttle — same cache window as Phase 7 plans,
+      and avoids fragile direct access to ZDO version internals)_
+- [x] Verify it works with our 6-inventory model by reading our own
       `CabinetStorage` directly — do **not** route through the aggregated
       `GetInventory()` shim from Phase 7 (that's for third-party mods)
 
@@ -260,7 +262,7 @@ panel; releasing shift restores the normal hover prompt.
 | `src/Patches/HudCrosshairPatch.cs` | `Hud.UpdateCrosshair` postfix → cabinet detection + show/hide |
 | `src/UI/CabinetHoverPanel.cs` | Panel root, lifecycle, anchoring, shift-key gating |
 | `src/UI/CabinetHoverTabSection.cs` | One tab's header + icon grid |
-| `src/Config/CabinetConfig.cs` | Cell size, respect-private-chests toggle |
+| `src/Config/CabinetConfig.cs` | `Hover.CellSize`, `Hover.IgnoreWard` toggles added in v0.2.1 |
 
 Key decisions:
 
