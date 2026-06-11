@@ -46,7 +46,7 @@ namespace ExtendedStorage.Patches
                 return;
             }
 
-            var hovering = player.m_hovering;
+            var hovering = player.GetHoverObject();
             if (hovering == null)
             {
                 CabinetHoverPanel.Hide();

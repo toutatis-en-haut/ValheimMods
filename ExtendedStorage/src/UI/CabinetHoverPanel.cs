@@ -64,8 +64,8 @@ namespace ExtendedStorage.UI
 
             HammerTabStyle.Resolve();
 
-            var parent = GUIManager.PixelFix != null
-                ? GUIManager.PixelFix.transform
+            var parent = GUIManager.CustomGUIFront != null
+                ? GUIManager.CustomGUIFront.transform
                 : (Hud.instance != null ? Hud.instance.transform : null);
             if (parent == null) return null;
 
